@@ -1,0 +1,87 @@
+import { createContext, useContext, useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/contexts/AuthContext'
+
+const BasketContext = createContext(null)
+
+export function BasketProvider({ children }) {
+  const { subscription } = useAuth()
+  const [basketItems, setBasketItems] = useState([])
+  const [pendingReturns, setPendingReturns] = useState([])
+
+  useEffect(() => {
+    if (!subscription?.id) return
+    supabase
+      .from('basket_items')
+      .select('*')
+      .eq('subscription_id', subscription.id)
+      .order('added_at', { ascending: true })
+      .then(({ data }) => setBasketItems(data ?? []))
+  }, [subscription?.id])
+
+  async function addToBasket(meal) {
+    if (!subscription?.id) throw new Error('No subscription — please sign out and sign back in.')
+    const item = {
+      subscription_id: subscription.id,
+      meal_id: meal.meal_id,
+      name: meal.name,
+      photo_url: meal.photo_url ?? null,
+      prep_time: meal.prep_time ?? null,
+      servings: meal.servings ?? null,
+      difficulty: meal.difficulty ?? null,
+    }
+    const { data, error } = await supabase
+      .from('basket_items')
+      .upsert(item, { onConflict: 'subscription_id,meal_id' })
+      .select()
+      .single()
+    if (error) throw error
+    setBasketItems((prev) => {
+      const without = prev.filter((b) => b.meal_id !== meal.meal_id)
+      return [...without, data]
+    })
+  }
+
+  async function removeFromBasket(mealId) {
+    if (!subscription?.id) return
+    await supabase
+      .from('basket_items')
+      .delete()
+      .eq('subscription_id', subscription.id)
+      .eq('meal_id', mealId)
+    const removed = basketItems.find((b) => b.meal_id === mealId)
+    setBasketItems((prev) => prev.filter((b) => b.meal_id !== mealId))
+    // Signal useMealDiscovery to return this meal to the deck
+    if (removed) setPendingReturns((prev) => [...prev, removed])
+  }
+
+  function clearPendingReturns() {
+    setPendingReturns([])
+  }
+
+  function isInBasket(mealId) {
+    return basketItems.some((b) => b.meal_id === mealId)
+  }
+
+  return (
+    <BasketContext.Provider
+      value={{
+        basketItems,
+        basketCount: basketItems.length,
+        isInBasket,
+        addToBasket,
+        removeFromBasket,
+        pendingReturns,
+        clearPendingReturns,
+      }}
+    >
+      {children}
+    </BasketContext.Provider>
+  )
+}
+
+export function useBasket() {
+  const ctx = useContext(BasketContext)
+  if (!ctx) throw new Error('useBasket must be used within BasketProvider')
+  return ctx
+}
