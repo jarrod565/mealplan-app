@@ -3,7 +3,7 @@ import { animated, useSpring } from '@react-spring/web'
 import { useDrag } from '@use-gesture/react'
 import { Star, Clock, ChevronDown, Loader2 } from 'lucide-react'
 import { fetchMealDetails } from '@/lib/spoonacular'
-import { cn } from '@/lib/utils'
+import { cn, formatIngredientQty } from '@/lib/utils'
 
 const SWIPE_THRESHOLD = 80  // px before a swipe is committed
 const SPRING_CONFIG = { tension: 300, friction: 28 }
@@ -216,7 +216,9 @@ const SwipeCard = forwardRef(function SwipeCard(
               {details.ingredients.map((ing) => (
                 <li key={ing.id} className="text-sm text-foreground/80 flex items-start gap-2">
                   <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary/40 shrink-0" />
-                  {ing.original}
+                  {ing.unit?.toLowerCase() === 'servings'
+                    ? <>{ing.name} <span className="text-muted-foreground">— to taste</span></>
+                    : ing.original}
                 </li>
               ))}
             </ul>

@@ -14,7 +14,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { CATEGORIES } from '@/lib/units'
-import { cn } from '@/lib/utils'
+import { cn, formatIngredientQty } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Loader2, ShoppingCart, Trash2, Clipboard, Share2 } from 'lucide-react'
 
@@ -189,12 +189,7 @@ export default function ShoppingListPage() {
 }
 
 function CheckItem({ item, onToggle }) {
-  const displayQty =
-    item.quantity == null
-      ? ''
-      : Number.isInteger(item.quantity)
-        ? item.quantity
-        : Number(Number(item.quantity).toFixed(2))
+  const displayQty = formatIngredientQty(item.quantity, item.unit)
 
   return (
     <button
@@ -227,9 +222,12 @@ function CheckItem({ item, onToggle }) {
         {item.name}
       </span>
 
-      {displayQty !== '' && (
-        <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
-          {displayQty}{item.unit ? ` ${item.unit}` : ''}
+      {displayQty && (
+        <span className={cn(
+          'text-xs text-muted-foreground shrink-0',
+          displayQty !== 'to taste' && 'tabular-nums'
+        )}>
+          {displayQty}
         </span>
       )}
     </button>

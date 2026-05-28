@@ -4,6 +4,7 @@ import { useFavorites } from '@/contexts/FavoritesContext'
 import { useBasket } from '@/contexts/BasketContext'
 import { fetchMealDetails } from '@/lib/spoonacular'
 import { Star, Clock, Heart, ShoppingBasket, Check, Loader2, X } from 'lucide-react'
+import { formatIngredientQty } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -166,17 +167,22 @@ export default function FavoritesPage() {
 
             {!drawerLoading && drawerDetails?.ingredients?.length > 0 && (
               <ul className="space-y-3">
-                {drawerDetails.ingredients.map((ing) => (
-                  <li key={ing.id} className="flex items-baseline gap-3">
-                    {(ing.amount != null || ing.unit) && (
-                      <span className="shrink-0 min-w-[56px] text-right text-xs font-semibold text-muted-foreground tabular-nums">
-                        {ing.amount != null ? formatAmount(ing.amount) : ''}
-                        {ing.unit ? ` ${ing.unit}` : ''}
-                      </span>
-                    )}
-                    <span className="text-sm text-foreground leading-snug">{ing.name}</span>
-                  </li>
-                ))}
+                {drawerDetails.ingredients.map((ing) => {
+                  const qty = formatIngredientQty(ing.amount, ing.unit)
+                  return (
+                    <li key={ing.id} className="flex items-baseline gap-3">
+                      {qty && (
+                        <span className={cn(
+                          'shrink-0 min-w-[64px] text-right text-xs font-semibold text-muted-foreground',
+                          qty !== 'to taste' && 'tabular-nums'
+                        )}>
+                          {qty}
+                        </span>
+                      )}
+                      <span className="text-sm text-foreground leading-snug">{ing.name}</span>
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>
@@ -249,8 +255,3 @@ function FavoriteCard({ meal, inBasket, onOpen, onUnfavorite, onAddToBasket }) {
   )
 }
 
-function formatAmount(amount) {
-  if (Number.isInteger(amount)) return amount
-  const rounded = Math.round(amount * 4) / 4
-  return Number(rounded.toFixed(2))
-}

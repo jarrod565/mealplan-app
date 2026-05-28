@@ -11,6 +11,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Clock, Loader2, ShoppingBasket, ChevronRight, Trash2, X } from 'lucide-react'
+import { formatIngredientQty } from '@/lib/utils'
 
 export default function BasketPage() {
   const { basketItems, basketCount, removeFromBasket } = useBasket()
@@ -181,17 +182,22 @@ export default function BasketPage() {
 
             {!drawerLoading && drawerDetails?.ingredients?.length > 0 && (
               <ul className="space-y-3">
-                {drawerDetails.ingredients.map((ing) => (
-                  <li key={ing.id} className="flex items-baseline gap-3">
-                    {(ing.amount != null || ing.unit) && (
-                      <span className="shrink-0 min-w-[56px] text-right text-xs font-semibold text-muted-foreground tabular-nums">
-                        {ing.amount != null ? formatAmount(ing.amount) : ''}
-                        {ing.unit ? ` ${ing.unit}` : ''}
-                      </span>
-                    )}
-                    <span className="text-sm text-foreground leading-snug">{ing.name}</span>
-                  </li>
-                ))}
+                {drawerDetails.ingredients.map((ing) => {
+                  const qty = formatIngredientQty(ing.amount, ing.unit)
+                  return (
+                    <li key={ing.id} className="flex items-baseline gap-3">
+                      {qty && (
+                        <span className={cn(
+                          'shrink-0 min-w-[64px] text-right text-xs font-semibold text-muted-foreground',
+                          qty !== 'to taste' && 'tabular-nums'
+                        )}>
+                          {qty}
+                        </span>
+                      )}
+                      <span className="text-sm text-foreground leading-snug">{ing.name}</span>
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>
@@ -252,9 +258,3 @@ function BasketCard({ meal, onOpen, onRemove }) {
   )
 }
 
-function formatAmount(amount) {
-  if (Number.isInteger(amount)) return amount
-  // Round to nearest ¼ for cleaner fractions (e.g. 0.33 → 0.25, 2.5 → 2.5)
-  const rounded = Math.round(amount * 4) / 4
-  return Number(rounded.toFixed(2))
-}

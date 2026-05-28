@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { cn } from '@/lib/utils'
+import { cn, formatIngredientQty } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
   Loader2, Minus, Plus, X, ChevronRight,
@@ -373,17 +373,15 @@ function MealServingRow({ meal, status, adjusted, onAdjust }) {
 }
 
 function IngredientRow({ item, isEditing, editValue, onEditStart, onEditChange, onEditSave, onRemove }) {
-  const displayQty =
-    item.quantity == null
-      ? ''
-      : Number.isInteger(item.quantity)
-        ? item.quantity
-        : Number(item.quantity.toFixed(2))
+  const isToTaste = item.unit?.toLowerCase() === 'servings'
+  const displayQty = isToTaste
+    ? 'to taste'
+    : formatIngredientQty(item.quantity, item.unit)
 
   return (
     <div className="flex items-center gap-2 px-1 py-1.5 rounded-md hover:bg-secondary/40 group">
       <span className="flex-1 text-sm">{item.name}</span>
-      {isEditing ? (
+      {isEditing && !isToTaste ? (
         <input
           type="number"
           min="0"
@@ -397,11 +395,12 @@ function IngredientRow({ item, isEditing, editValue, onEditStart, onEditChange, 
         />
       ) : (
         <button
-          onClick={onEditStart}
-          className="text-sm text-right text-muted-foreground hover:text-foreground transition-colors rounded px-1 shrink-0"
-          title="Tap to edit quantity"
+          onClick={isToTaste ? undefined : onEditStart}
+          disabled={isToTaste}
+          className="text-sm text-right text-muted-foreground hover:text-foreground transition-colors rounded px-1 shrink-0 disabled:pointer-events-none"
+          title={isToTaste ? undefined : 'Tap to edit quantity'}
         >
-          {displayQty} {item.unit}
+          {displayQty}
         </button>
       )}
       <button
