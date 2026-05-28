@@ -18,30 +18,30 @@ export default function Sidebar() {
   return (
     <aside className="hidden md:flex fixed top-0 left-0 bottom-0 w-56 flex-col border-r bg-background z-40">
       {/* Wordmark */}
-      <div className="flex items-center gap-2 px-5 py-5 border-b">
-        <span className="text-xl" aria-hidden="true">🥗</span>
-        <span className="font-semibold text-lg tracking-tight">MealPlan</span>
+      <div className="flex items-center gap-2.5 px-5 py-5 border-b">
+        <span className="text-2xl" aria-hidden="true">🥗</span>
+        <span className="font-bold text-lg tracking-tight text-foreground">MealPlan</span>
       </div>
 
       {/* Nav links */}
-      <nav className="flex-1 py-4 px-3 space-y-1">
+      <nav className="flex-1 py-4 px-3 space-y-0.5">
         {NAV_ITEMS.map(({ to, label, Icon, badge }) => (
           <NavLink
             key={to}
             to={to}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors',
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
                 isActive
-                  ? 'bg-secondary text-foreground font-medium'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+                  ? 'bg-primary/10 text-primary font-semibold'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'
               )
             }
           >
             <div className="relative">
               <Icon className="w-4 h-4" strokeWidth={1.75} />
               {badge != null && (
-                <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 rounded-full bg-foreground text-background text-[9px] font-bold flex items-center justify-center px-1">
+                <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center px-1">
                   {badge}
                 </span>
               )}

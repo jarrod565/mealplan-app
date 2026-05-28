@@ -32,7 +32,6 @@ export default function PlanPage() {
     topCardRef.current?.snapBack()
   }
 
-  // Action button handlers for tap-to-swipe
   function handleTapYes() {
     if (deck[0]) swipeYes(deck[0])
   }
@@ -46,18 +45,18 @@ export default function PlanPage() {
   return (
     <div className="flex flex-col h-[100svh] md:h-screen">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 border-b shrink-0">
-        <h1 className="text-lg font-semibold">Plan</h1>
-        <div className="flex items-center gap-2">
+      <header className="flex items-center justify-between px-5 py-4 border-b shrink-0 bg-background/95 backdrop-blur-sm">
+        <h1 className="text-xl font-bold tracking-tight">Plan</h1>
+        <div className="flex items-center gap-2.5">
           <ActiveFilterIndicator />
           <Link
             to="/basket"
-            className="relative p-2 rounded-md hover:bg-secondary transition-colors"
+            className="relative p-2 rounded-lg hover:bg-secondary transition-colors"
             aria-label={`Basket — ${basketCount} meal${basketCount !== 1 ? 's' : ''}`}
           >
             <ShoppingBasket className="w-5 h-5" />
             {basketCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-foreground text-background text-[10px] font-bold flex items-center justify-center px-1">
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center px-1">
                 {basketCount}
               </span>
             )}
@@ -66,18 +65,18 @@ export default function PlanPage() {
       </header>
 
       {/* Deck area */}
-      <main className="flex-1 flex flex-col items-center justify-center px-4 py-4 overflow-hidden">
+      <main className="flex-1 flex flex-col items-center justify-center px-5 py-5 overflow-hidden">
         {status === 'init' && (
           <div className="flex flex-col items-center gap-3 text-muted-foreground">
-            <Loader2 className="w-8 h-8 animate-spin" />
-            <p className="text-sm">Finding meals for you…</p>
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <p className="text-sm font-medium">Finding meals for you…</p>
           </div>
         )}
 
         {status === 'error' && (
           <div className="flex flex-col items-center gap-4 text-center max-w-xs">
-            <p className="text-2xl">😕</p>
-            <p className="font-semibold">Couldn't load meals</p>
+            <p className="text-3xl">😕</p>
+            <p className="font-semibold text-lg">Couldn't load meals</p>
             <p className="text-sm text-muted-foreground">
               {errorMessage ?? 'Check your connection and try again.'}
             </p>
@@ -92,9 +91,9 @@ export default function PlanPage() {
 
         {status === 'empty' && (
           <div className="flex flex-col items-center gap-4 text-center max-w-xs">
-            <p className="text-4xl">🎉</p>
-            <p className="font-semibold text-lg">You've seen it all!</p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-5xl">🎉</p>
+            <p className="font-bold text-xl">You've seen it all!</p>
+            <p className="text-sm text-muted-foreground leading-relaxed">
               You've gone through all available meals. Try loosening your dietary filters or
               reload for a fresh batch.
             </p>
@@ -108,17 +107,17 @@ export default function PlanPage() {
           </div>
         )}
 
-        {(status === 'idle') && deck.length > 0 && (
+        {status === 'idle' && deck.length > 0 && (
           <>
             {/* Card stack */}
-            <div className="relative w-full max-w-sm" style={{ height: 'min(65svh, 520px)' }}>
+            <div className="relative w-full max-w-sm" style={{ height: 'min(62svh, 500px)' }}>
               {deck.slice(0, 3).map((meal, i) => (
                 <div
                   key={meal.meal_id}
                   style={{
                     position: 'absolute',
                     inset: 0,
-                    transform: `scale(${1 - i * 0.04}) translateY(${i * 12}px)`,
+                    transform: `scale(${1 - i * 0.035}) translateY(${i * 14}px)`,
                     zIndex: 10 - i,
                     transition: i === 0 ? 'none' : 'transform 0.2s ease-out',
                     pointerEvents: i === 0 ? 'auto' : 'none',
@@ -139,34 +138,33 @@ export default function PlanPage() {
             </div>
 
             {/* Action buttons */}
-            <div className="flex items-center gap-6 mt-6">
+            <div className="flex items-end justify-center gap-7 mt-8">
               <ActionButton
                 onClick={handleTapNever}
                 label="Never"
-                icon={<Ban className="w-5 h-5" />}
-                className="border-destructive/30 text-destructive/70 hover:border-destructive hover:text-destructive"
+                icon={<Ban className="w-[1.1rem] h-[1.1rem]" />}
+                variant="never"
                 size="sm"
               />
               <ActionButton
                 onClick={handleTapNo}
-                label="No"
-                icon={<X className="w-6 h-6" />}
-                className="border-muted-foreground/30 text-muted-foreground hover:border-muted-foreground"
+                label="Skip"
+                icon={<X className="w-5 h-5" />}
+                variant="neutral"
                 size="md"
               />
               <ActionButton
                 onClick={handleTapYes}
-                label="Yes"
-                icon={<Check className="w-6 h-6" />}
-                className="border-green-500/40 text-green-600 hover:border-green-500 dark:text-green-400"
-                size="md"
+                label="Yes!"
+                icon={<Check className="w-[1.4rem] h-[1.4rem]" />}
+                variant="yes"
+                size="lg"
               />
             </div>
           </>
         )}
       </main>
 
-      {/* Never confirmation dialog */}
       <NeverConfirmDialog
         meal={pendingNever}
         open={!!pendingNever}
@@ -177,21 +175,27 @@ export default function PlanPage() {
   )
 }
 
-function ActionButton({ onClick, label, icon, className, size }) {
-  const sizeClass = size === 'sm'
-    ? 'w-12 h-12'
-    : 'w-14 h-14'
+function ActionButton({ onClick, label, icon, variant = 'neutral', size = 'md' }) {
+  const sizes = { sm: 'w-12 h-12', md: 'w-[3.75rem] h-[3.75rem]', lg: 'w-[4.5rem] h-[4.5rem]' }
+  const styles = {
+    never: 'border-2 border-destructive/20 text-destructive/50 hover:border-destructive/50 hover:text-destructive/80 bg-background transition-colors',
+    neutral: 'border-2 border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground bg-background transition-colors',
+    yes: 'bg-primary text-primary-foreground shadow-lg shadow-primary/25 hover:bg-primary/90 transition-all',
+  }
   return (
-    <button
-      onClick={onClick}
-      aria-label={label}
-      className={cn(
-        'rounded-full border-2 flex items-center justify-center transition-colors shadow-sm',
-        sizeClass,
-        className
-      )}
-    >
-      {icon}
-    </button>
+    <div className="flex flex-col items-center gap-2">
+      <button
+        onClick={onClick}
+        aria-label={label}
+        className={cn(
+          'rounded-full flex items-center justify-center active:scale-95 transition-transform',
+          sizes[size],
+          styles[variant]
+        )}
+      >
+        {icon}
+      </button>
+      <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">{label}</span>
+    </div>
   )
 }

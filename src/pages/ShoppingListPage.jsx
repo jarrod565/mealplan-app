@@ -70,18 +70,20 @@ export default function ShoppingListPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
       </div>
     )
   }
 
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center gap-4">
-        <ShoppingCart className="w-12 h-12 text-muted-foreground/40" />
+      <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center gap-5">
+        <div className="w-16 h-16 rounded-2xl bg-secondary flex items-center justify-center">
+          <ShoppingCart className="w-7 h-7 text-primary/50" />
+        </div>
         <div>
-          <p className="font-semibold">No shopping list yet</p>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="font-semibold text-base">No shopping list yet</p>
+          <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
             Add meals to your basket, review ingredients, and generate a list.
           </p>
         </div>
@@ -98,7 +100,7 @@ export default function ShoppingListPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-1">
           <div>
-            <h1 className="text-xl font-semibold">Shopping List</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Shopping List</h1>
             <p className="text-xs text-muted-foreground mt-0.5">
               {unchecked > 0
                 ? `${unchecked} of ${items.length} remaining`
@@ -132,15 +134,15 @@ export default function ShoppingListPage() {
 
         {/* "That's everything!" banner */}
         {allChecked && (
-          <div className="rounded-xl bg-foreground text-background px-4 py-3 mb-5 flex items-center justify-between gap-3">
+          <div className="rounded-2xl bg-primary text-primary-foreground px-4 py-3.5 mb-5 flex items-center justify-between gap-3">
             <div>
               <p className="font-semibold text-sm">That's everything!</p>
-              <p className="text-xs opacity-60 mt-0.5">Ready to clear your list?</p>
+              <p className="text-xs opacity-70 mt-0.5">Ready to clear your list?</p>
             </div>
             <Button
               size="sm"
               variant="outline"
-              className="shrink-0 text-foreground border-background/30 hover:bg-background/10"
+              className="shrink-0 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10"
               onClick={() => setClearDialogOpen(true)}
             >
               Clear list
@@ -155,7 +157,7 @@ export default function ShoppingListPage() {
             if (!catItems?.length) return null
             return (
               <div key={cat} className="mb-2">
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 mt-4 first:mt-0 px-1">
+                <p className="text-[11px] font-bold text-primary/60 uppercase tracking-widest mb-1 mt-4 first:mt-0 px-1">
                   {cat}
                 </p>
                 {catItems.map(item => (
@@ -205,7 +207,7 @@ function CheckItem({ item, onToggle }) {
       <span
         className={cn(
           'w-5 h-5 rounded border-2 shrink-0 flex items-center justify-center transition-colors',
-          item.checked ? 'bg-foreground border-foreground' : 'border-border'
+          item.checked ? 'bg-primary border-primary' : 'border-border'
         )}
       >
         {item.checked && (

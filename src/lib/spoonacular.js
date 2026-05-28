@@ -34,7 +34,7 @@ function toMeal(result) {
 export async function fetchMealBatch(dietParams = {}) {
   const params = new URLSearchParams({
     apiKey: apiKey(),
-    number: '10',
+    number: '5',
     addRecipeInformation: 'true',
     instructionsRequired: 'true',
     sort: 'random',

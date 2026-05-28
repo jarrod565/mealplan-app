@@ -25,14 +25,14 @@ export default function BottomNav() {
               className={({ isActive }) =>
                 cn(
                   'flex h-full flex-col items-center justify-center gap-1 text-xs transition-colors',
-                  isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
+                  isActive ? 'text-primary font-medium' : 'text-muted-foreground hover:text-foreground'
                 )
               }
             >
               <div className="relative">
                 <Icon className="w-5 h-5" strokeWidth={1.75} />
                 {badge != null && (
-                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 rounded-full bg-foreground text-background text-[9px] font-bold flex items-center justify-center px-1">
+                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center px-1">
                     {badge}
                   </span>
                 )}

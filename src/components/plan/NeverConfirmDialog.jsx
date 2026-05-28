@@ -54,7 +54,7 @@ export default function NeverConfirmDialog({ meal, open, onConfirm, onCancel }) 
                 className={cn(
                   'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
                   selectedReason === reason
-                    ? 'border-foreground bg-foreground text-background'
+                    ? 'border-primary bg-primary text-primary-foreground'
                     : 'border-border bg-background text-foreground hover:bg-secondary'
                 )}
               >

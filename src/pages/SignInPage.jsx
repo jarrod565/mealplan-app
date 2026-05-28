@@ -6,7 +6,7 @@ import { Separator } from '@/components/ui/separator'
 
 function GoogleIcon() {
   return (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
+    <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
       <path
         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
         fill="#4285F4"
@@ -29,7 +29,7 @@ function GoogleIcon() {
 
 function FacebookIcon() {
   return (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
+    <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
       <path
         d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"
         fill="#1877F2"
@@ -53,7 +53,7 @@ export default function SignInPage() {
     setGoogleLoading(true)
     try {
       await signInWithGoogle()
-    } catch (err) {
+    } catch {
       setError('Could not sign in with Google. Please try again.')
       setGoogleLoading(false)
     }
@@ -64,29 +64,31 @@ export default function SignInPage() {
     setFacebookLoading(true)
     try {
       await signInWithFacebook()
-    } catch (err) {
+    } catch {
       setError('Could not sign in with Facebook. Please try again.')
       setFacebookLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm space-y-8">
-        {/* Logo / wordmark */}
-        <div className="text-center space-y-2">
-          <div className="text-4xl" aria-hidden="true">🥗</div>
-          <h1 className="text-2xl font-semibold tracking-tight">MealPlan</h1>
-          <p className="text-sm text-muted-foreground">
-            Weekly meal planning for your household
-          </p>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background px-5">
+      <div className="w-full max-w-sm space-y-10">
+        {/* Branding */}
+        <div className="text-center space-y-4">
+          <div className="text-7xl" aria-hidden="true">🥗</div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">MealPlan</h1>
+            <p className="text-base text-muted-foreground mt-2 leading-relaxed">
+              Weekly meal planning for your household
+            </p>
+          </div>
         </div>
 
         {/* SSO buttons */}
         <div className="space-y-3">
           <Button
             variant="outline"
-            className="w-full gap-3"
+            className="w-full gap-3 h-12 text-[15px] font-medium"
             onClick={handleGoogle}
             disabled={googleLoading || facebookLoading}
           >
@@ -96,7 +98,7 @@ export default function SignInPage() {
 
           <Button
             variant="outline"
-            className="w-full gap-3"
+            className="w-full gap-3 h-12 text-[15px] font-medium"
             onClick={handleFacebook}
             disabled={googleLoading || facebookLoading}
           >
@@ -111,7 +113,7 @@ export default function SignInPage() {
 
         <Separator />
 
-        <p className="text-xs text-muted-foreground text-center">
+        <p className="text-xs text-muted-foreground text-center leading-relaxed">
           By continuing, you agree to our Terms of Service and Privacy Policy.
           Two people can share a single account.
         </p>

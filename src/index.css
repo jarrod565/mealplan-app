@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Use class-based dark mode so next-themes controls the toggle */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -27,48 +30,79 @@
 }
 
 :root {
-  --radius: 0.5rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --radius: 0.625rem;
+
+  /* Backgrounds */
+  --background: oklch(0.975 0.010 85);
+  --card: oklch(0.960 0.018 75);
+  --popover: oklch(0.975 0.010 85);
+
+  /* Text */
+  --foreground: oklch(0.165 0.025 148);
+  --card-foreground: oklch(0.165 0.025 148);
+  --popover-foreground: oklch(0.165 0.025 148);
+
+  /* Primary — forest green */
+  --primary: oklch(0.44 0.115 148);
+  --primary-foreground: oklch(0.975 0.006 85);
+
+  /* Secondary — soft sage */
+  --secondary: oklch(0.918 0.032 148);
+  --secondary-foreground: oklch(0.30 0.085 148);
+
+  /* Muted — warm gray */
+  --muted: oklch(0.916 0.014 80);
+  --muted-foreground: oklch(0.515 0.025 148);
+
+  /* Accent — mid sage */
+  --accent: oklch(0.876 0.040 148);
+  --accent-foreground: oklch(0.26 0.085 148);
+
+  /* Destructive */
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+
+  /* Borders */
+  --border: oklch(0.872 0.016 80);
+  --input: oklch(0.872 0.016 80);
+  --ring: oklch(0.50 0.095 148);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
+  /* Deep forest-at-night surfaces — warm dark, not pure black */
+  --background: oklch(0.150 0.014 160);
+  --card: oklch(0.192 0.016 160);
+  --popover: oklch(0.150 0.014 160);
+
+  /* Warm off-white text */
+  --foreground: oklch(0.932 0.010 85);
+  --card-foreground: oklch(0.932 0.010 85);
+  --popover-foreground: oklch(0.932 0.010 85);
+
+  /* Primary — lighter forest green, readable on dark bg */
+  --primary: oklch(0.62 0.105 148);
+  --primary-foreground: oklch(0.150 0.014 160);
+
+  /* Secondary — dark sage */
+  --secondary: oklch(0.230 0.020 148);
+  --secondary-foreground: oklch(0.78 0.058 148);
+
+  /* Muted */
+  --muted: oklch(0.230 0.014 160);
+  --muted-foreground: oklch(0.580 0.022 148);
+
+  /* Accent */
+  --accent: oklch(0.258 0.024 148);
+  --accent-foreground: oklch(0.80 0.058 148);
+
+  /* Destructive */
+  --destructive: oklch(0.50 0.22 25);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
+
+  /* Borders */
+  --border: oklch(0.268 0.014 160);
+  --input: oklch(0.268 0.014 160);
+  --ring: oklch(0.55 0.09 148);
 }
 
 @layer base {
@@ -77,6 +111,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }

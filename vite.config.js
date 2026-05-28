@@ -15,8 +15,8 @@ export default defineConfig({
         name: 'MealPlan',
         short_name: 'MealPlan',
         description: 'Weekly meal planning for households',
-        theme_color: '#18181b',
-        background_color: '#ffffff',
+        theme_color: '#3a6e44',
+        background_color: '#f8f5ee',
         display: 'standalone',
         orientation: 'portrait',
         icons: [

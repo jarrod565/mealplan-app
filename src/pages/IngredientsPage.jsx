@@ -171,13 +171,13 @@ export default function IngredientsPage() {
     <div className="max-w-2xl mx-auto px-4 py-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
-        <h1 className="text-xl font-semibold">Ingredients</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Ingredients</h1>
         <div className="flex items-center gap-1 rounded-lg border p-0.5">
           <button
             onClick={() => setViewMode('grouped')}
             className={cn(
               'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors',
-              viewMode === 'grouped' ? 'bg-secondary text-foreground font-medium' : 'text-muted-foreground'
+              viewMode === 'grouped' ? 'bg-secondary text-primary font-semibold' : 'text-muted-foreground'
             )}
           >
             <LayoutGrid className="w-3.5 h-3.5" />
@@ -251,7 +251,7 @@ export default function IngredientsPage() {
                 if (!items?.length) return null
                 return (
                   <div key={cat} className="mb-2">
-                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 mt-4 first:mt-0 px-1">
+                    <p className="text-[11px] font-bold text-primary/60 uppercase tracking-widest mb-1 mt-4 first:mt-0 px-1">
                       {cat}
                     </p>
                     {items.map(item => (

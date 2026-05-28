@@ -46,7 +46,7 @@ export default function DietaryPreferencesPage() {
   const activeCount = active.size
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-2xl mx-auto px-4 py-7 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon-sm" asChild>
@@ -56,7 +56,7 @@ export default function DietaryPreferencesPage() {
           </Link>
         </Button>
         <div>
-          <h1 className="text-xl font-semibold">Dietary Preferences</h1>
+          <h1 className="text-xl font-bold tracking-tight">Dietary Preferences</h1>
           {activeCount > 0 && (
             <p className="text-sm text-muted-foreground">
               {activeCount} restriction{activeCount !== 1 ? 's' : ''} active
@@ -93,7 +93,7 @@ export default function DietaryPreferencesPage() {
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   'disabled:pointer-events-none disabled:opacity-60',
                   isActive
-                    ? 'border-foreground bg-foreground text-background'
+                    ? 'border-primary bg-primary text-primary-foreground'
                     : 'border-border bg-background text-foreground hover:bg-secondary'
                 )}
                 aria-pressed={isActive}

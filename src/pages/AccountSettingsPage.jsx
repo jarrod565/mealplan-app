@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useTheme } from 'next-themes'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -7,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,12 +21,19 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { Crown, LogOut, Users, Webhook, Zap } from 'lucide-react'
+import { Crown, LogOut, Monitor, Moon, Sun, Users, Webhook, Zap } from 'lucide-react'
 import { stripePromise } from '@/lib/stripe'
 import { supabase } from '@/lib/supabase'
 
+const THEME_OPTIONS = [
+  { value: 'light',  label: 'Light',  Icon: Sun },
+  { value: 'system', label: 'System', Icon: Monitor },
+  { value: 'dark',   label: 'Dark',   Icon: Moon },
+]
+
 export default function AccountSettingsPage() {
   const { user, subscription, subscriptionTier, isPremium, signOut, updateSubscription } = useAuth()
+  const { theme, setTheme } = useTheme()
   const [servingSize, setServingSize] = useState(
     String(subscription?.default_serving_size ?? 2)
   )
@@ -74,17 +83,56 @@ export default function AccountSettingsPage() {
     }
   }
 
+  async function handleThemeChange(value) {
+    setTheme(value)
+    try {
+      await updateSubscription({ theme_preference: value })
+    } catch {
+      // best-effort — local change already applied
+    }
+  }
+
   async function handleSignOut() {
     await signOut()
     window.location.href = '/sign-in'
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-2xl mx-auto px-4 py-7 space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Account Settings</h1>
-        <p className="text-sm text-muted-foreground mt-1">{user?.email}</p>
+        <h1 className="text-2xl font-bold tracking-tight">Account Settings</h1>
+        <p className="text-sm text-muted-foreground mt-1.5">{user?.email}</p>
       </div>
+
+      {/* Appearance */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Sun className="w-4 h-4" />
+            Appearance
+          </CardTitle>
+          <CardDescription>Choose your preferred colour scheme.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="inline-flex w-full rounded-xl border overflow-hidden">
+            {THEME_OPTIONS.map(({ value, label, Icon }) => (
+              <button
+                key={value}
+                onClick={() => handleThemeChange(value)}
+                className={cn(
+                  'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors',
+                  (theme ?? 'system') === value
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-background text-muted-foreground hover:text-foreground hover:bg-secondary'
+                )}
+              >
+                <Icon className="w-4 h-4" />
+                {label}
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Subscription */}
       <Card>
