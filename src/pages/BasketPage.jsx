@@ -11,7 +11,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Clock, Loader2, ShoppingBasket, ChevronRight, Trash2, X } from 'lucide-react'
-import { formatIngredientQty } from '@/lib/utils'
+import { cn, formatIngredientQty } from '@/lib/utils'
 
 export default function BasketPage() {
   const { basketItems, basketCount, removeFromBasket } = useBasket()
