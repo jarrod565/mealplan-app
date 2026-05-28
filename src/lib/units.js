@@ -32,8 +32,14 @@ const COUNT_UNITS = new Set([
   'strip', 'strips',
 ])
 
+// Strip unit abbreviations that Spoonacular sometimes embeds at the start of a name
+function stripUnitPrefix(name) {
+  return name.trim().replace(/^(fl\s+oz|oz|lbs?|kg|g|tbsp|tsp|ml|l)\s+/i, '').trim()
+}
+
 function getUnitFamily(unit) {
   const u = unit.toLowerCase().trim()
+  if (u === 'serving' || u === 'servings') return 'taste'
   if (VOLUME_TO_TSP[u] !== undefined) return 'volume'
   if (WEIGHT_TO_OZ[u] !== undefined) return 'weight'
   if (COUNT_UNITS.has(u)) return 'count'
@@ -111,17 +117,25 @@ export const CATEGORIES = [
   'Other',
 ]
 
+function uniqueIds(arrays) {
+  return [...new Set(arrays.flat())]
+}
+
 /**
  * Combines ingredients from multiple meals into a single aggregated list.
  * contributions: [{ mealId, ingredients: [{ id, name, amount, unit, aisle }], multiplier }]
+ *
+ * Returned items may include an `extras` array for cross-family quantities
+ * (e.g. onion measured as count in one recipe and cups in another).
  */
 export function aggregateIngredients(contributions) {
-  // map key: `normalizedName::family`
+  // Pass 1: accumulate per normalizedName::family
   const map = new Map()
 
   for (const { mealId, ingredients, multiplier } of contributions) {
     for (const ing of ingredients) {
-      const normalizedName = ing.name.toLowerCase().trim().replace(/\s+/g, ' ')
+      const displayName = stripUnitPrefix(ing.name ?? '')
+      const normalizedName = displayName.toLowerCase().replace(/\s+/g, ' ')
       const unit = (ing.unit ?? '').trim()
       const family = getUnitFamily(unit)
       const scaledAmount = (ing.amount ?? 0) * multiplier
@@ -129,25 +143,21 @@ export function aggregateIngredients(contributions) {
 
       if (map.has(key)) {
         const entry = map.get(key)
-        if (family === 'volume') {
-          entry.baseAmount += toBaseTsp(scaledAmount, unit)
-        } else if (family === 'weight') {
-          entry.baseAmount += toBaseOz(scaledAmount, unit)
-        } else {
-          entry.baseAmount += scaledAmount
-        }
-        if (!entry.sourceMealIds.includes(mealId)) {
-          entry.sourceMealIds.push(mealId)
-        }
+        if (family === 'volume') entry.baseAmount += toBaseTsp(scaledAmount, unit)
+        else if (family === 'weight') entry.baseAmount += toBaseOz(scaledAmount, unit)
+        else if (family !== 'taste') entry.baseAmount += scaledAmount
+        if (!entry.sourceMealIds.includes(mealId)) entry.sourceMealIds.push(mealId)
       } else {
         let baseAmount
         if (family === 'volume') baseAmount = toBaseTsp(scaledAmount, unit)
         else if (family === 'weight') baseAmount = toBaseOz(scaledAmount, unit)
+        else if (family === 'taste') baseAmount = null
         else baseAmount = scaledAmount
 
         map.set(key, {
           id: key,
-          name: ing.name,
+          name: displayName,
+          normalizedName,
           baseAmount,
           family,
           category: aisleToCategory(ing.aisle),
@@ -158,16 +168,63 @@ export function aggregateIngredients(contributions) {
     }
   }
 
-  return Array.from(map.values()).map(entry => {
-    const { quantity, unit } = fromBase(entry.baseAmount, entry.family)
-    return {
-      id: entry.id,
-      name: entry.name,
-      quantity,
-      unit,
-      category: entry.category,
-      isCustom: entry.isCustom,
-      sourceMealIds: entry.sourceMealIds,
+  // Pass 2: group by normalizedName to detect cross-family duplicates
+  const byName = new Map()
+  for (const entry of map.values()) {
+    const group = byName.get(entry.normalizedName)
+    if (group) group.push(entry)
+    else byName.set(entry.normalizedName, [entry])
+  }
+
+  const result = []
+  for (const entries of byName.values()) {
+    const tasteEntries = entries.filter(e => e.family === 'taste')
+    const numericEntries = entries.filter(e => e.family !== 'taste')
+
+    if (numericEntries.length === 0) {
+      // All to-taste — emit a single "to taste" line
+      const first = tasteEntries[0]
+      result.push({
+        id: first.id,
+        name: first.name,
+        quantity: null,
+        unit: 'servings',
+        category: first.category,
+        isCustom: false,
+        sourceMealIds: uniqueIds(entries.map(e => e.sourceMealIds)),
+      })
+    } else if (numericEntries.length === 1) {
+      const entry = numericEntries[0]
+      const { quantity, unit } = fromBase(entry.baseAmount, entry.family)
+      result.push({
+        id: entry.id,
+        name: entry.name,
+        quantity,
+        unit,
+        category: entry.category,
+        isCustom: false,
+        sourceMealIds: entry.sourceMealIds,
+      })
+    } else {
+      // Multiple numeric families — primary + extras displayed as "2.5 + 1.5 cups"
+      const primary = numericEntries[0]
+      const { quantity, unit } = fromBase(primary.baseAmount, primary.family)
+      const extras = numericEntries.slice(1).map(e => {
+        const { quantity: q, unit: u } = fromBase(e.baseAmount, e.family)
+        return { quantity: q, unit: u }
+      })
+      result.push({
+        id: primary.id,
+        name: primary.name,
+        quantity,
+        unit,
+        extras,
+        category: primary.category,
+        isCustom: false,
+        sourceMealIds: uniqueIds(numericEntries.map(e => e.sourceMealIds)),
+      })
     }
-  })
+  }
+
+  return result
 }

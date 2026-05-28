@@ -10,7 +10,7 @@ export function cn(...inputs) {
  * Spoonacular returns "servings" as the unit for loose ingredients like salt
  * and spices — these are shown as "to taste" instead of a meaningless number.
  */
-export function formatIngredientQty(amount, unit) {
+export function formatIngredientQty(amount, unit, extras) {
   if (unit?.toLowerCase() === 'servings') return 'to taste'
   const parts = []
   if (amount != null) {
@@ -18,5 +18,14 @@ export function formatIngredientQty(amount, unit) {
     parts.push(Number.isInteger(rounded) ? rounded : Number(rounded.toFixed(2)))
   }
   if (unit) parts.push(unit)
-  return parts.join(' ')
+  let base = parts.join(' ')
+  if (extras?.length) {
+    const extrasStr = extras.map(({ quantity, unit: u }) => {
+      const r = Math.round((quantity ?? 0) * 4) / 4
+      const q = Number.isInteger(r) ? r : Number(r.toFixed(2))
+      return u ? `${q} ${u}` : String(q)
+    }).join(' + ')
+    base = base ? `${base} + ${extrasStr}` : extrasStr
+  }
+  return base || ''
 }
