@@ -3,10 +3,23 @@ import { supabase } from '@/lib/supabase'
 
 const AuthContext = createContext(null)
 
+const GUEST_STORAGE_KEYS = [
+  'guest_basket',
+  'guest_favorites',
+  'guest_hidden',
+  'guest_shopping_list',
+  'guest_mode',
+]
+
+function clearGuestData() {
+  GUEST_STORAGE_KEYS.forEach((k) => localStorage.removeItem(k))
+}
+
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(undefined) // undefined = loading, null = unauthenticated
   const [profile, setProfile] = useState(null)
   const [subscription, setSubscription] = useState(null)
+  const [isGuest, setIsGuest] = useState(() => localStorage.getItem('guest_mode') === 'true')
 
   // Prevents concurrent / duplicate loads when multiple auth events fire on startup
   const loadingUserIdRef = useRef(null)
@@ -60,6 +73,11 @@ export function AuthProvider({ children }) {
       (event, session) => {
         setSession(session)
         if (session?.user) {
+          // Real sign-in: discard any lingering guest data
+          if (localStorage.getItem('guest_mode') === 'true') {
+            clearGuestData()
+            setIsGuest(false)
+          }
           loadProfileAndSubscription(session.user.id)
         } else {
           loadingUserIdRef.current = null
@@ -71,6 +89,11 @@ export function AuthProvider({ children }) {
 
     return () => authListener.unsubscribe()
   }, [])
+
+  function enterGuestMode() {
+    localStorage.setItem('guest_mode', 'true')
+    setIsGuest(true)
+  }
 
   async function signInWithGoogle() {
     const { error } = await supabase.auth.signInWithOAuth({
@@ -89,6 +112,12 @@ export function AuthProvider({ children }) {
   }
 
   async function signOut() {
+    if (isGuest) {
+      // Exit guest mode but preserve localStorage data so it's there if they return as guest
+      localStorage.removeItem('guest_mode')
+      setIsGuest(false)
+      return
+    }
     supabase.auth.signOut().catch(() => {})
     Object.keys(localStorage)
       .filter((k) => k.startsWith('sb-'))
@@ -107,7 +136,8 @@ export function AuthProvider({ children }) {
     if (data) setSubscription(data)
   }
 
-  const isLoading = session === undefined
+  // Skip the Supabase loading spinner when we already know the user is a guest
+  const isLoading = session === undefined && !isGuest
   const isAuthenticated = !!session
   const subscriptionTier = subscription?.subscription_tier ?? 'free'
   const isPremium = subscriptionTier === 'premium'
@@ -121,11 +151,13 @@ export function AuthProvider({ children }) {
         subscription,
         isLoading,
         isAuthenticated,
+        isGuest,
         subscriptionTier,
         isPremium,
         signInWithGoogle,
         signInWithFacebook,
         signOut,
+        enterGuestMode,
         updateSubscription,
       }}
     >

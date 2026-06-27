@@ -21,9 +21,10 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { Crown, LogOut, Monitor, Moon, Sun, Users, Webhook, Zap } from 'lucide-react'
+import { Crown, LogIn, LogOut, Monitor, Moon, Sun, Users, Webhook, Zap } from 'lucide-react'
 import { stripePromise } from '@/lib/stripe'
 import { supabase } from '@/lib/supabase'
+import UserAvatar from '@/components/layout/UserAvatar'
 
 const THEME_OPTIONS = [
   { value: 'light',  label: 'Light',  Icon: Sun },
@@ -32,7 +33,7 @@ const THEME_OPTIONS = [
 ]
 
 export default function AccountSettingsPage() {
-  const { user, subscription, subscriptionTier, isPremium, signOut, updateSubscription } = useAuth()
+  const { user, subscription, subscriptionTier, isPremium, isGuest, signOut, updateSubscription } = useAuth()
   const { theme, setTheme } = useTheme()
   const [servingSize, setServingSize] = useState(
     String(subscription?.default_serving_size ?? 2)
@@ -98,11 +99,36 @@ export default function AccountSettingsPage() {
   }
 
   return (
+    <>
+      <header className="flex items-center justify-between px-5 py-4 border-b bg-background/95 backdrop-blur-sm sticky top-0 z-10">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">Settings</h1>
+          <p className="text-xs text-muted-foreground">{isGuest ? 'Guest' : user?.email}</p>
+        </div>
+        <UserAvatar />
+      </header>
+
     <div className="max-w-2xl mx-auto px-4 py-7 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Account Settings</h1>
-        <p className="text-sm text-muted-foreground mt-1.5">{user?.email}</p>
-      </div>
+
+      {/* Guest prompt */}
+      {isGuest && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="py-4 space-y-3">
+            <div>
+              <p className="text-sm font-medium">Sign in to save your data across devices</p>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Your current data is stored locally and will be lost if you clear your browser storage.
+              </p>
+            </div>
+            <Button className="w-full" asChild>
+              <Link to="/sign-in">
+                <LogIn className="w-4 h-4 mr-2" />
+                Sign in
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Appearance */}
       <Card>
@@ -154,7 +180,7 @@ export default function AccountSettingsPage() {
             </Badge>
           </div>
 
-          {!isPremium && (
+          {!isPremium && !isGuest && (
             <>
               <Separator />
               <div className="space-y-2">
@@ -275,30 +301,34 @@ export default function AccountSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Sign out */}
+      {/* Sign out / Exit guest mode */}
       <Separator />
 
       <AlertDialog>
         <AlertDialogTrigger asChild>
           <Button variant="ghost" className="w-full text-destructive hover:text-destructive gap-2">
             <LogOut className="w-4 h-4" />
-            Sign out
+            {isGuest ? 'Exit guest mode' : 'Sign out'}
           </Button>
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Sign out?</AlertDialogTitle>
+            <AlertDialogTitle>{isGuest ? 'Exit guest mode?' : 'Sign out?'}</AlertDialogTitle>
             <AlertDialogDescription>
-              You will be returned to the sign-in screen. Your meal plan and shopping list
-              will be waiting when you return.
+              {isGuest
+                ? 'You will be returned to the sign-in screen. Your locally stored data will still be here if you continue as a guest again.'
+                : 'You will be returned to the sign-in screen. Your meal plan and shopping list will be waiting when you return.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSignOut}>Sign out</AlertDialogAction>
+            <AlertDialogAction onClick={handleSignOut}>
+              {isGuest ? 'Exit guest mode' : 'Sign out'}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </>
   )
 }

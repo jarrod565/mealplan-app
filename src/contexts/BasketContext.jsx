@@ -4,12 +4,19 @@ import { useAuth } from '@/contexts/AuthContext'
 
 const BasketContext = createContext(null)
 
+const GUEST_KEY = 'guest_basket'
+
 export function BasketProvider({ children }) {
-  const { subscription } = useAuth()
+  const { subscription, isGuest } = useAuth()
   const [basketItems, setBasketItems] = useState([])
   const [pendingReturns, setPendingReturns] = useState([])
 
   useEffect(() => {
+    if (isGuest) {
+      const stored = localStorage.getItem(GUEST_KEY)
+      setBasketItems(stored ? JSON.parse(stored) : [])
+      return
+    }
     if (!subscription?.id) return
     supabase
       .from('basket_items')
@@ -17,9 +24,26 @@ export function BasketProvider({ children }) {
       .eq('subscription_id', subscription.id)
       .order('added_at', { ascending: true })
       .then(({ data }) => setBasketItems(data ?? []))
-  }, [subscription?.id])
+  }, [subscription?.id, isGuest])
 
   async function addToBasket(meal) {
+    if (isGuest) {
+      const item = {
+        meal_id: meal.meal_id,
+        name: meal.name,
+        photo_url: meal.photo_url ?? null,
+        prep_time: meal.prep_time ?? null,
+        servings: meal.servings ?? null,
+        difficulty: meal.difficulty ?? null,
+        added_at: new Date().toISOString(),
+      }
+      setBasketItems((prev) => {
+        const next = [...prev.filter((b) => b.meal_id !== meal.meal_id), item]
+        localStorage.setItem(GUEST_KEY, JSON.stringify(next))
+        return next
+      })
+      return
+    }
     if (!subscription?.id) throw new Error('No subscription — please sign out and sign back in.')
     const item = {
       subscription_id: subscription.id,
@@ -43,6 +67,16 @@ export function BasketProvider({ children }) {
   }
 
   async function removeFromBasket(mealId) {
+    if (isGuest) {
+      const removed = basketItems.find((b) => b.meal_id === mealId)
+      setBasketItems((prev) => {
+        const next = prev.filter((b) => b.meal_id !== mealId)
+        localStorage.setItem(GUEST_KEY, JSON.stringify(next))
+        return next
+      })
+      if (removed) setPendingReturns((prev) => [...prev, removed])
+      return
+    }
     if (!subscription?.id) return
     await supabase
       .from('basket_items')
@@ -51,7 +85,6 @@ export function BasketProvider({ children }) {
       .eq('meal_id', mealId)
     const removed = basketItems.find((b) => b.meal_id === mealId)
     setBasketItems((prev) => prev.filter((b) => b.meal_id !== mealId))
-    // Signal useMealDiscovery to return this meal to the deck
     if (removed) setPendingReturns((prev) => [...prev, removed])
   }
 

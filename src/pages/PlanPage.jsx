@@ -1,22 +1,48 @@
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
+import { Sheet, SheetContent, SheetTitle, SheetClose } from '@/components/ui/sheet'
 import { useMealDiscovery } from '@/hooks/useMealDiscovery'
 import { useFavorites } from '@/contexts/FavoritesContext'
-import { useBasket } from '@/contexts/BasketContext'
+import { fetchMealDetails } from '@/lib/spoonacular'
 import ActiveFilterIndicator from '@/components/plan/ActiveFilterIndicator'
 import SwipeCard from '@/components/plan/SwipeCard'
 import NeverConfirmDialog from '@/components/plan/NeverConfirmDialog'
-import { RefreshCw, Loader2, ShoppingBasket, X, Check, Ban } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import UserAvatar from '@/components/layout/UserAvatar'
+import { RefreshCw, Loader2, X } from 'lucide-react'
 
 export default function PlanPage() {
   const { deck, status, errorMessage, swipeYes, swipeNo, swipeNever, reload } = useMealDiscovery()
   const { isFavorited, toggleFavorite } = useFavorites()
-  const { basketCount } = useBasket()
 
   const [pendingNever, setPendingNever] = useState(null)
   const topCardRef = useRef(null)
+
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
+  const [sheetMeal, setSheetMeal] = useState(null)
+  const [sheetDetails, setSheetDetails] = useState(null)
+  const [sheetLoading, setSheetLoading] = useState(false)
+  const detailsCache = useRef({})
+
+  async function handleIngredientsPress(meal) {
+    setSheetMeal(meal)
+    setIsSheetOpen(true)
+    if (detailsCache.current[meal.meal_id]) {
+      setSheetDetails(detailsCache.current[meal.meal_id])
+      return
+    }
+    setSheetDetails(null)
+    setSheetLoading(true)
+    try {
+      const data = await fetchMealDetails(meal.meal_id)
+      detailsCache.current[meal.meal_id] = data
+      setSheetDetails(data)
+    } catch {
+      // fail silently — sheet shows unavailable state
+    } finally {
+      setSheetLoading(false)
+    }
+  }
 
   function handleSwipeNever(meal) {
     setPendingNever(meal)
@@ -32,49 +58,33 @@ export default function PlanPage() {
     topCardRef.current?.snapBack()
   }
 
-  function handleTapYes() {
-    if (deck[0]) swipeYes(deck[0])
-  }
-  function handleTapNo() {
-    if (deck[0]) swipeNo(deck[0])
-  }
-  function handleTapNever() {
-    if (deck[0]) setPendingNever(deck[0])
-  }
-
   return (
-    <div className="flex flex-col h-[100svh] md:h-screen">
-      {/* Header */}
+    // Subtract bottom nav height (4rem = 64px) on mobile so content never hides behind it
+    <div className="flex flex-col h-[calc(100svh-4rem)] md:h-screen">
+
+      {/* Header — no basket icon, only filter indicator + avatar */}
       <header className="flex items-center justify-between px-5 py-4 border-b shrink-0 bg-background/95 backdrop-blur-sm">
         <h1 className="text-xl font-bold tracking-tight">Plan</h1>
         <div className="flex items-center gap-2.5">
           <ActiveFilterIndicator />
-          <Link
-            to="/basket"
-            className="relative p-2 rounded-lg hover:bg-secondary transition-colors"
-            aria-label={`Basket — ${basketCount} meal${basketCount !== 1 ? 's' : ''}`}
-          >
-            <ShoppingBasket className="w-5 h-5" />
-            {basketCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center px-1">
-                {basketCount}
-              </span>
-            )}
-          </Link>
+          <UserAvatar />
         </div>
       </header>
 
-      {/* Deck area */}
-      <main className="flex-1 flex flex-col items-center justify-center px-5 py-5 overflow-hidden">
+      {/* Main — card deck fills all remaining vertical space */}
+      <main className="flex-1 flex flex-col min-h-0">
+
+        {/* ── LOADING ── */}
         {status === 'init' && (
-          <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <p className="text-sm font-medium">Finding meals for you…</p>
           </div>
         )}
 
+        {/* ── ERROR ── */}
         {status === 'error' && (
-          <div className="flex flex-col items-center gap-4 text-center max-w-xs">
+          <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-6 max-w-xs mx-auto">
             <p className="text-3xl">😕</p>
             <p className="font-semibold text-lg">Couldn't load meals</p>
             <p className="text-sm text-muted-foreground">
@@ -89,8 +99,9 @@ export default function PlanPage() {
           </div>
         )}
 
+        {/* ── EMPTY ── */}
         {status === 'empty' && (
-          <div className="flex flex-col items-center gap-4 text-center max-w-xs">
+          <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-6 max-w-xs mx-auto">
             <p className="text-5xl">🎉</p>
             <p className="font-bold text-xl">You've seen it all!</p>
             <p className="text-sm text-muted-foreground leading-relaxed">
@@ -107,61 +118,36 @@ export default function PlanPage() {
           </div>
         )}
 
+        {/* ── CARD DECK ── */}
         {status === 'idle' && deck.length > 0 && (
-          <>
-            {/* Card stack */}
-            <div className="relative w-full max-w-sm" style={{ height: 'min(62svh, 500px)' }}>
-              {deck.slice(0, 3).map((meal, i) => (
-                <div
-                  key={meal.meal_id}
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    transform: `scale(${1 - i * 0.035}) translateY(${i * 14}px)`,
-                    zIndex: 10 - i,
-                    transition: i === 0 ? 'none' : 'transform 0.2s ease-out',
-                    pointerEvents: i === 0 ? 'auto' : 'none',
-                  }}
-                >
-                  <SwipeCard
-                    meal={meal}
-                    isTop={i === 0}
-                    ref={i === 0 ? topCardRef : undefined}
-                    onSwipeYes={swipeYes}
-                    onSwipeNo={swipeNo}
-                    onSwipeNever={handleSwipeNever}
-                    onToggleFavorite={toggleFavorite}
-                    isFavorited={isFavorited(meal.meal_id)}
-                  />
-                </div>
-              ))}
-            </div>
-
-            {/* Action buttons */}
-            <div className="flex items-end justify-center gap-7 mt-8">
-              <ActionButton
-                onClick={handleTapNever}
-                label="Never"
-                icon={<Ban className="w-[1.1rem] h-[1.1rem]" />}
-                variant="never"
-                size="sm"
-              />
-              <ActionButton
-                onClick={handleTapNo}
-                label="Skip"
-                icon={<X className="w-5 h-5" />}
-                variant="neutral"
-                size="md"
-              />
-              <ActionButton
-                onClick={handleTapYes}
-                label="Yes!"
-                icon={<Check className="w-[1.4rem] h-[1.4rem]" />}
-                variant="yes"
-                size="lg"
-              />
-            </div>
-          </>
+          <div className="relative flex-1 min-h-0 mx-4 mt-3 mb-5 md:mx-auto md:w-full md:max-w-[420px] md:mt-6 md:mb-8 lg:flex-none lg:my-auto lg:w-[560px] lg:max-w-none lg:h-[640px]">
+            {deck.slice(0, 2).map((meal, i) => (
+              <div
+                key={meal.meal_id}
+                style={{
+                  position: 'absolute',
+                  top: 0, left: 0, right: 0, bottom: 0,
+                  zIndex: 10 - i,
+                  // Back card: scaled down and shifted down slightly to create a peek effect
+                  transform: i === 1 ? 'scale(0.95) translateY(18px)' : undefined,
+                  transition: i === 0 ? 'none' : 'transform 0.3s ease-out',
+                  pointerEvents: i === 0 ? 'auto' : 'none',
+                }}
+              >
+                <SwipeCard
+                  meal={meal}
+                  isTop={i === 0}
+                  ref={i === 0 ? topCardRef : undefined}
+                  onSwipeYes={swipeYes}
+                  onSwipeNo={swipeNo}
+                  onSwipeNever={handleSwipeNever}
+                  onToggleFavorite={toggleFavorite}
+                  isFavorited={isFavorited(meal.meal_id)}
+                  onIngredientsPress={handleIngredientsPress}
+                />
+              </div>
+            ))}
+          </div>
         )}
       </main>
 
@@ -171,31 +157,56 @@ export default function PlanPage() {
         onConfirm={handleNeverConfirm}
         onCancel={handleNeverCancel}
       />
-    </div>
-  )
-}
 
-function ActionButton({ onClick, label, icon, variant = 'neutral', size = 'md' }) {
-  const sizes = { sm: 'w-12 h-12', md: 'w-[3.75rem] h-[3.75rem]', lg: 'w-[4.5rem] h-[4.5rem]' }
-  const styles = {
-    never: 'border-2 border-destructive/20 text-destructive/50 hover:border-destructive/50 hover:text-destructive/80 bg-background transition-colors',
-    neutral: 'border-2 border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground bg-background transition-colors',
-    yes: 'bg-primary text-primary-foreground shadow-lg shadow-primary/25 hover:bg-primary/90 transition-all',
-  }
-  return (
-    <div className="flex flex-col items-center gap-2">
-      <button
-        onClick={onClick}
-        aria-label={label}
-        className={cn(
-          'rounded-full flex items-center justify-center active:scale-95 transition-transform',
-          sizes[size],
-          styles[variant]
-        )}
-      >
-        {icon}
-      </button>
-      <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">{label}</span>
+      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+        <SheetContent
+          side="bottom"
+          showCloseButton={false}
+          className="h-[65vh] z-[60] flex flex-col gap-0 px-0 pt-0"
+          overlayClassName="z-[60]"
+        >
+          {/* Drag handle */}
+          <div className="flex justify-center pt-3 pb-1 shrink-0" aria-hidden="true">
+            <div className="w-12 h-1.5 rounded-full bg-border" />
+          </div>
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
+            <SheetTitle className="text-base font-semibold leading-snug pr-8">
+              {sheetMeal?.name}
+            </SheetTitle>
+            <SheetClose className="p-1.5 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors shrink-0">
+              <X className="w-4 h-4" />
+              <span className="sr-only">Close</span>
+            </SheetClose>
+          </div>
+
+          {/* Ingredient list */}
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            {sheetLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                Loading ingredients…
+              </div>
+            ) : sheetDetails?.ingredients?.length > 0 ? (
+              <ul className="space-y-2 pb-4">
+                {sheetDetails.ingredients.map((ing) => (
+                  <li key={ing.id} className="text-sm text-foreground/80 flex items-start gap-2">
+                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary/40 shrink-0" />
+                    {ing.unit?.toLowerCase() === 'servings'
+                      ? <>{ing.name} <span className="text-muted-foreground">— to taste</span></>
+                      : ing.original}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground py-4">
+                Ingredient details unavailable.
+              </p>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

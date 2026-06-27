@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { CalendarDays, ShoppingBasket, ShoppingCart, Heart, EyeOff, Settings } from 'lucide-react'
+import { CalendarDays, ShoppingBasket, ShoppingCart, Heart, EyeOff } from 'lucide-react'
 import { useBasket } from '@/contexts/BasketContext'
 import { cn } from '@/lib/utils'
 
@@ -12,15 +12,17 @@ export default function Sidebar() {
     { to: '/shopping-list', label: 'List',      Icon: ShoppingCart,   badge: null },
     { to: '/favorites',     label: 'Favorites', Icon: Heart,          badge: null },
     { to: '/hidden',        label: 'Hidden',    Icon: EyeOff,         badge: null },
-    { to: '/settings',      label: 'Settings',  Icon: Settings,       badge: null },
   ]
 
   return (
     <aside className="hidden md:flex fixed top-0 left-0 bottom-0 w-56 flex-col border-r bg-background z-40">
       {/* Wordmark */}
-      <div className="flex items-center gap-2.5 px-5 py-5 border-b">
-        <span className="text-2xl" aria-hidden="true">🥗</span>
-        <span className="font-bold text-lg tracking-tight text-foreground">MealPlan</span>
+      <div className="px-5 py-4 border-b">
+        <img
+          src="/dinder-logo.svg"
+          alt="Dinder"
+          className="w-full h-auto dark:[filter:brightness(0)_invert(1)]"
+        />
       </div>
 
       {/* Nav links */}
@@ -50,6 +52,7 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
     </aside>
   )
 }

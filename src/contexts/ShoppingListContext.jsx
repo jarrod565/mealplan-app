@@ -4,6 +4,8 @@ import { useAuth } from '@/contexts/AuthContext'
 
 const ShoppingListContext = createContext(null)
 
+const GUEST_KEY = 'guest_shopping_list'
+
 function toItems(rows) {
   return rows.map(r => ({
     id: r.id,
@@ -17,7 +19,7 @@ function toItems(rows) {
 }
 
 export function ShoppingListProvider({ children }) {
-  const { subscription } = useAuth()
+  const { subscription, isGuest } = useAuth()
   const subscriptionId = subscription?.id ?? null
 
   const [listId, setListId] = useState(null)
@@ -25,6 +27,18 @@ export function ShoppingListProvider({ children }) {
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
+    if (isGuest) {
+      const stored = localStorage.getItem(GUEST_KEY)
+      if (stored) {
+        const { listId: gListId, items: gItems } = JSON.parse(stored)
+        setListId(gListId)
+        setItems(gItems)
+      } else {
+        setListId(null)
+        setItems([])
+      }
+      return
+    }
     if (!subscriptionId) {
       setListId(null)
       setItems([])
@@ -58,9 +72,24 @@ export function ShoppingListProvider({ children }) {
     }
     load()
     return () => { cancelled = true }
-  }, [subscriptionId])
+  }, [subscriptionId, isGuest])
 
   async function generateShoppingList(listItems) {
+    if (isGuest) {
+      const gItems = listItems.map((item, idx) => ({
+        id: `guest-${idx}-${Date.now()}`,
+        name: item.name,
+        quantity: item.quantity ?? null,
+        unit: item.unit ?? '',
+        category: item.category ?? 'Other',
+        isCustom: item.isCustom ?? false,
+        checked: false,
+      }))
+      setListId('guest-list')
+      setItems(gItems)
+      localStorage.setItem(GUEST_KEY, JSON.stringify({ listId: 'guest-list', items: gItems }))
+      return
+    }
     if (!subscriptionId) return
     setIsLoading(true)
     try {
@@ -102,6 +131,16 @@ export function ShoppingListProvider({ children }) {
   }
 
   async function toggleItem(id) {
+    if (isGuest) {
+      setItems((current) => {
+        const next = current.map((item) =>
+          item.id === id ? { ...item, checked: !item.checked } : item
+        )
+        localStorage.setItem(GUEST_KEY, JSON.stringify({ listId: 'guest-list', items: next }))
+        return next
+      })
+      return
+    }
     // Optimistic update; capture previous value for revert
     let prev
     setItems(current =>
@@ -123,6 +162,12 @@ export function ShoppingListProvider({ children }) {
   }
 
   async function clearList() {
+    if (isGuest) {
+      setListId(null)
+      setItems([])
+      localStorage.removeItem(GUEST_KEY)
+      return
+    }
     if (!subscriptionId) return
     await supabase
       .from('shopping_lists')
@@ -141,6 +186,6 @@ export function ShoppingListProvider({ children }) {
 
 export function useShoppingList() {
   const ctx = useContext(ShoppingListContext)
-  if (!ctx) throw new Error('useShoppingList must be used inside ShoppingListProvider')
+  if (!ctx) throw new Error('useShoppingList must be inside ShoppingListProvider')
   return ctx
 }

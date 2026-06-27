@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { CalendarDays, ShoppingBasket, ShoppingCart, Heart, EyeOff, Settings } from 'lucide-react'
+import { CalendarDays, ShoppingBasket, ShoppingCart, Heart, EyeOff } from 'lucide-react'
 import { useBasket } from '@/contexts/BasketContext'
 import { cn } from '@/lib/utils'
 
@@ -12,7 +12,6 @@ export default function BottomNav() {
     { to: '/shopping-list', label: 'List',      Icon: ShoppingCart,   badge: null },
     { to: '/favorites',     label: 'Favorites', Icon: Heart,          badge: null },
     { to: '/hidden',        label: 'Hidden',    Icon: EyeOff,         badge: null },
-    { to: '/settings',      label: 'Settings',  Icon: Settings,       badge: null },
   ]
 
   return (

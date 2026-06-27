@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import { useFavorites } from '@/contexts/FavoritesContext'
 import { useBasket } from '@/contexts/BasketContext'
 import { fetchMealDetails } from '@/lib/spoonacular'
-import { Star, Clock, Heart, ShoppingBasket, Check, Loader2, X } from 'lucide-react'
+import { Clock, Heart, ShoppingBasket, Check, Loader2, X } from 'lucide-react'
 import { formatIngredientQty } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,6 +12,7 @@ import {
   SheetContent,
   SheetTitle,
 } from '@/components/ui/sheet'
+import UserAvatar from '@/components/layout/UserAvatar'
 import { cn } from '@/lib/utils'
 
 export default function FavoritesPage() {
@@ -48,51 +49,52 @@ export default function FavoritesPage() {
 
   const openMeal = favorites.find((m) => m.meal_id === openMealId) ?? null
 
-  if (favorites.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center gap-5">
-        <div className="w-16 h-16 rounded-2xl bg-secondary flex items-center justify-center">
-          <Heart className="w-7 h-7 text-primary/50" />
-        </div>
-        <div>
-          <p className="font-semibold text-base">No favorites yet</p>
-          <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
-            Tap the star on any meal while swiping to save it here.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <>
-      <div className="max-w-2xl mx-auto px-4 py-7">
-        <div className="flex items-center justify-between mb-5">
-          <h1 className="text-2xl font-bold tracking-tight">Favorites</h1>
-          <span className="text-sm text-muted-foreground font-medium">
-            {favorites.length} saved
-          </span>
+      <header className="flex items-center justify-between px-5 py-4 border-b bg-background/95 backdrop-blur-sm sticky top-0 z-10">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">Favorites</h1>
+          {favorites.length > 0 && (
+            <p className="text-xs text-muted-foreground">{favorites.length} saved</p>
+          )}
         </div>
+        <UserAvatar />
+      </header>
 
-        <div className="space-y-3">
-          {favorites.map((meal) => (
-            <FavoriteCard
-              key={meal.meal_id}
-              meal={meal}
-              inBasket={isInBasket(meal.meal_id)}
-              onOpen={() => setOpenMealId(meal.meal_id)}
-              onUnfavorite={() => toggleFavorite(meal)}
-              onAddToBasket={async () => {
-                try {
-                  await addToBasket(meal)
-                } catch {
-                  toast.error('Could not add to basket. Please try again.')
-                }
-              }}
-            />
-          ))}
+      {favorites.length === 0 ? (
+        <div className="flex flex-col items-center justify-center min-h-[50vh] px-6 text-center gap-5">
+          <div className="w-16 h-16 rounded-2xl bg-secondary flex items-center justify-center">
+            <Heart className="w-7 h-7 text-primary/50" />
+          </div>
+          <div>
+            <p className="font-semibold text-base">No favorites yet</p>
+            <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
+              Tap the heart on any meal while swiping to save it here.
+            </p>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="max-w-2xl mx-auto px-4 py-5">
+          <div className="space-y-3">
+            {favorites.map((meal) => (
+              <FavoriteCard
+                key={meal.meal_id}
+                meal={meal}
+                inBasket={isInBasket(meal.meal_id)}
+                onOpen={() => setOpenMealId(meal.meal_id)}
+                onUnfavorite={() => toggleFavorite(meal)}
+                onAddToBasket={async () => {
+                  try {
+                    await addToBasket(meal)
+                  } catch {
+                    toast.error('Could not add to basket. Please try again.')
+                  }
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       <Sheet open={openMealId !== null} onOpenChange={(v) => !v && setOpenMealId(null)}>
         <SheetContent
@@ -100,7 +102,6 @@ export default function FavoritesPage() {
           showCloseButton={false}
           className="gap-0 p-0 w-full sm:max-w-sm flex flex-col"
         >
-          {/* Photo header */}
           <div className="relative shrink-0 h-48 bg-secondary">
             {openMeal?.photo_url ? (
               <img
@@ -142,9 +143,8 @@ export default function FavoritesPage() {
             </div>
           </div>
 
-          {/* Ingredient list */}
           <div className="flex-1 overflow-y-auto px-5 py-5">
-            <p className="text-[11px] font-bold text-primary/60 uppercase tracking-widest mb-4">
+            <p className="text-[11px] font-bold text-primary/70 uppercase tracking-widest mb-4">
               {drawerLoading
                 ? 'Loading ingredients…'
                 : drawerDetails?.error
@@ -194,64 +194,76 @@ export default function FavoritesPage() {
 
 function FavoriteCard({ meal, inBasket, onOpen, onUnfavorite, onAddToBasket }) {
   return (
-    <div className="flex items-center gap-4 rounded-2xl border bg-card shadow-sm overflow-hidden">
-      {/* Clickable area — photo + details */}
+    <div className="flex items-stretch rounded-2xl bg-card shadow-sm overflow-hidden">
+      {/* Square thumbnail */}
       <button
         onClick={onOpen}
-        className="flex items-center gap-4 flex-1 min-w-0 p-4 text-left hover:bg-secondary/30 active:bg-secondary/50 transition-colors"
+        className="shrink-0 w-24 h-24"
         aria-label={`View ingredients for ${meal.name}`}
+        tabIndex={-1}
       >
         {meal.photo_url ? (
           <img
             src={meal.photo_url}
             alt={meal.name}
-            className="w-[72px] h-[72px] rounded-xl object-cover shrink-0"
+            className="w-full h-full object-cover"
           />
         ) : (
-          <div className="w-[72px] h-[72px] rounded-xl bg-secondary flex items-center justify-center shrink-0">
+          <div className="w-full h-full bg-secondary flex items-center justify-center">
             <span className="text-2xl">🍽️</span>
           </div>
         )}
-
-        <div className="min-w-0">
-          <p className="font-semibold text-sm leading-snug line-clamp-2">{meal.name}</p>
-          {meal.prep_time != null && (
-            <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
-              <Clock className="w-3 h-3" />
-              <span>{meal.prep_time} min</span>
-            </div>
-          )}
-
-          <button
-            onClick={(e) => { e.stopPropagation(); onAddToBasket() }}
-            disabled={inBasket}
-            className={cn(
-              'mt-2.5 flex items-center gap-1.5 text-xs font-semibold rounded-full px-3 py-1 transition-colors border',
-              inBasket
-                ? 'border-transparent bg-secondary text-secondary-foreground cursor-default'
-                : 'border-primary/30 text-primary bg-primary/5 hover:bg-primary/10'
-            )}
-            aria-label={inBasket ? 'Already in basket' : `Add ${meal.name} to basket`}
-          >
-            {inBasket ? (
-              <><Check className="w-3 h-3" />In Basket</>
-            ) : (
-              <><ShoppingBasket className="w-3 h-3" />Add to Basket</>
-            )}
-          </button>
-        </div>
       </button>
 
-      {/* Unfavorite — separate tap target */}
+      {/* Content */}
+      <button
+        onClick={onOpen}
+        className="flex-1 min-w-0 px-4 py-3 text-left hover:bg-secondary/20 active:bg-secondary/40 transition-colors"
+        aria-label={`View ingredients for ${meal.name}`}
+      >
+        {meal.difficulty && (
+          <p className="text-[11px] font-semibold text-primary uppercase tracking-wide mb-0.5">
+            {meal.difficulty}
+          </p>
+        )}
+        <p className="font-semibold text-sm leading-snug line-clamp-2 text-foreground">
+          {meal.name}
+        </p>
+        {meal.prep_time != null && (
+          <div className="flex items-center gap-1.5 mt-1.5 text-xs text-muted-foreground">
+            <Clock className="w-3 h-3" />
+            <span>{meal.prep_time} min</span>
+          </div>
+        )}
+
+        <button
+          onClick={(e) => { e.stopPropagation(); onAddToBasket() }}
+          disabled={inBasket}
+          className={cn(
+            'mt-2 flex items-center gap-1.5 text-xs font-semibold rounded-full px-3 py-1 transition-colors border',
+            inBasket
+              ? 'border-transparent bg-secondary text-secondary-foreground cursor-default'
+              : 'border-primary/30 text-primary bg-primary/5 hover:bg-primary/10'
+          )}
+          aria-label={inBasket ? 'Already in basket' : `Add ${meal.name} to basket`}
+        >
+          {inBasket ? (
+            <><Check className="w-3 h-3" />In Basket</>
+          ) : (
+            <><ShoppingBasket className="w-3 h-3" />Add to Basket</>
+          )}
+        </button>
+      </button>
+
+      {/* Unfavorite */}
       <button
         onClick={onUnfavorite}
-        className="shrink-0 p-4 text-amber-400 hover:text-amber-500 transition-colors"
+        className="shrink-0 px-4 flex items-center text-rose-400 hover:text-rose-500 transition-colors"
         aria-label={`Remove ${meal.name} from favorites`}
         aria-pressed={true}
       >
-        <Star className="w-5 h-5 fill-current" />
+        <Heart className="w-5 h-5 fill-current" />
       </button>
     </div>
   )
 }
-

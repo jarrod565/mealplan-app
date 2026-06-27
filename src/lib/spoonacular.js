@@ -1,13 +1,24 @@
 // ── Spoonacular API helpers ───────────────────────────────────────────────────
 // All API calls are made client-side. API key is read from VITE_SPOONACULAR_API_KEY.
-// Ingredient data is fetched LAZILY — only when the user taps a card to expand it.
 
 const BASE = 'https://api.spoonacular.com'
+
+// complexSearch with addRecipeInformation=true already returns extendedIngredients.
+// We cache that data here so the Ingredients page avoids a second per-recipe fetch.
+const ingredientCache = new Map()
 
 function apiKey() {
   const key = import.meta.env.VITE_SPOONACULAR_API_KEY
   if (!key) throw new Error('Missing VITE_SPOONACULAR_API_KEY')
   return key
+}
+
+// Spoonacular recipe image URLs contain a size segment like "312x231".
+// Swap it for the largest reliably available variant.
+const IMAGE_SIZE_RE = /\d+x\d+/
+function upgradeImageSize(url) {
+  if (!url) return url
+  return url.replace(IMAGE_SIZE_RE, '636x393')
 }
 
 function deriveDifficulty(readyInMinutes) {
@@ -16,11 +27,31 @@ function deriveDifficulty(readyInMinutes) {
   return 'Hard'
 }
 
+function parseIngredients(extendedIngredients) {
+  return (extendedIngredients ?? []).map((ing) => ({
+    id: ing.id,
+    name: ing.name,
+    original: ing.original,
+    amount: ing.amount,
+    unit: ing.unit,
+    aisle: ing.aisle ?? 'Other',
+  }))
+}
+
 function toMeal(result) {
+  // Pre-populate the cache from batch data so the Ingredients page
+  // doesn't need a second per-recipe API call for recently swiped meals.
+  if (result.extendedIngredients?.length) {
+    ingredientCache.set(String(result.id), {
+      ingredients: parseIngredients(result.extendedIngredients),
+      servings: result.servings ?? null,
+      difficulty: result.readyInMinutes ? deriveDifficulty(result.readyInMinutes) : null,
+    })
+  }
   return {
     meal_id: String(result.id),
     name: result.title,
-    photo_url: result.image ?? null,
+    photo_url: upgradeImageSize(result.image ?? null),
     prep_time: result.readyInMinutes ?? null,
     servings: result.servings ?? null,
     difficulty: result.readyInMinutes ? deriveDifficulty(result.readyInMinutes) : null,
@@ -35,6 +66,7 @@ export async function fetchMealBatch(dietParams = {}) {
   const params = new URLSearchParams({
     apiKey: apiKey(),
     number: '5',
+    type: 'main course',
     addRecipeInformation: 'true',
     instructionsRequired: 'true',
     sort: 'random',
@@ -55,11 +87,14 @@ export async function fetchMealBatch(dietParams = {}) {
 }
 
 /**
- * Fetches full ingredient details for a single meal.
- * Called lazily when the user taps a card to expand it.
- * Returns { ingredients, difficulty, servings }.
+ * Returns ingredient details for a meal. Checks the batch cache first (populated
+ * when the meal was fetched in complexSearch), falling back to a per-recipe call.
  */
 export async function fetchMealDetails(mealId) {
+  if (ingredientCache.has(mealId)) {
+    return ingredientCache.get(mealId)
+  }
+
   const params = new URLSearchParams({
     apiKey: apiKey(),
     includeNutrition: 'false',
@@ -71,21 +106,14 @@ export async function fetchMealDetails(mealId) {
   }
 
   const data = await res.json()
-
-  const ingredients = (data.extendedIngredients ?? []).map((ing) => ({
-    id: ing.id,
-    name: ing.name,
-    original: ing.original,
-    amount: ing.amount,
-    unit: ing.unit,
-    aisle: ing.aisle ?? 'Other',
-  }))
-
-  return {
-    ingredients,
+  const details = {
+    ingredients: parseIngredients(data.extendedIngredients),
     servings: data.servings ?? null,
     difficulty: data.readyInMinutes ? deriveDifficulty(data.readyInMinutes) : null,
   }
+
+  ingredientCache.set(mealId, details)
+  return details
 }
 
 // ── CB_02 restriction ↔ Spoonacular param mapping ────────────────────────────

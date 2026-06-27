@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useBasket } from '@/contexts/BasketContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { useShoppingList } from '@/contexts/ShoppingListContext'
@@ -22,6 +22,7 @@ import {
   Loader2, Minus, Plus, X, ChevronRight,
   List, LayoutGrid, AlertTriangle, PlusCircle,
 } from 'lucide-react'
+import UserAvatar from '@/components/layout/UserAvatar'
 
 void aisleToCategory // exported for external use; suppress unused import warning
 
@@ -137,6 +138,12 @@ export default function IngredientsPage() {
     setShowCustomForm(false)
   }
 
+  function dismissMeal(mealId) {
+    const next = { ...detailsMap, [mealId]: { status: 'dismissed', data: null } }
+    setDetailsMap(next)
+    setListItems(computeList(next, servingOverrides, basketItems, householdServings))
+  }
+
   function handleGenerate() {
     if (!listItems?.length) return
     if (existingItems.length > 0) {
@@ -159,7 +166,9 @@ export default function IngredientsPage() {
   }
 
   const isLoading = listItems === null
-  const errorMeals = basketItems.filter(m => detailsMap[m.meal_id]?.status === 'error')
+  const visibleMeals = basketItems.filter(m => detailsMap[m.meal_id]?.status !== 'dismissed')
+  const errorMeals = visibleMeals.filter(m => detailsMap[m.meal_id]?.status === 'error')
+  const allFailed = !isLoading && visibleMeals.length > 0 && errorMeals.length === visibleMeals.length
   const activeItems = listItems ?? []
   const flatItems = [...activeItems].sort((a, b) => a.name.localeCompare(b.name))
   const grouped = CATEGORIES.reduce((acc, cat) => {
@@ -168,10 +177,14 @@ export default function IngredientsPage() {
   }, {})
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <h1 className="text-2xl font-bold tracking-tight">Ingredients</h1>
+    <>
+    <header className="flex items-center justify-between px-5 py-4 border-b bg-background/95 backdrop-blur-sm sticky top-0 z-10">
+      <h1 className="text-xl font-bold tracking-tight">Ingredients</h1>
+      <UserAvatar />
+    </header>
+    <div className="max-w-2xl mx-auto px-4 py-5">
+      {/* View toggle */}
+      <div className="flex items-center justify-end mb-5">
         <div className="flex items-center gap-1 rounded-lg border p-0.5">
           <button
             onClick={() => setViewMode('grouped')}
@@ -199,33 +212,34 @@ export default function IngredientsPage() {
       {/* Meal serving adjusters */}
       <div className="space-y-2 mb-6">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Servings per meal</p>
-        {basketItems.map(meal => (
+        {visibleMeals.map(meal => (
           <MealServingRow
             key={meal.meal_id}
             meal={meal}
             status={detailsMap[meal.meal_id]?.status ?? 'loading'}
             adjusted={servingOverrides[meal.meal_id] ?? householdServings}
             onAdjust={(delta) => adjustServing(meal.meal_id, delta)}
+            onDismiss={() => dismissMeal(meal.meal_id)}
           />
         ))}
       </div>
-
-      {/* Error banners for failed meals */}
-      {errorMeals.map(meal => (
-        <div
-          key={meal.meal_id}
-          className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 mb-3 text-xs text-destructive"
-        >
-          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-          Could not load ingredients for <span className="font-medium ml-1">{meal.name}</span> — excluded from list.
-        </div>
-      ))}
 
       {/* Ingredient list */}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
           <Loader2 className="w-6 h-6 animate-spin" />
           <p className="text-sm">Fetching ingredients…</p>
+        </div>
+      ) : allFailed ? (
+        <div className="py-12 text-center">
+          <p className="text-4xl mb-3">😕</p>
+          <p className="font-semibold text-sm">Couldn't load ingredients</p>
+          <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed max-w-xs mx-auto">
+            Ingredient data wasn't available for your selected meals. Go back to your basket and try swapping in different meals.
+          </p>
+          <Button variant="outline" size="sm" className="mt-4" asChild>
+            <Link to="/basket">Back to basket</Link>
+          </Button>
         </div>
       ) : activeItems.length === 0 ? (
         <div className="py-12 text-center text-sm text-muted-foreground">
@@ -293,18 +307,16 @@ export default function IngredientsPage() {
       {/* Generate Shopping List */}
       <div className="mt-6 pt-4 border-t">
         <Button
-          className="w-full gap-2"
+          className="w-full gap-2 h-11 text-base"
           disabled={isLoading || activeItems.length === 0 || isGenerating}
           onClick={handleGenerate}
         >
           {isGenerating && <Loader2 className="w-4 h-4 animate-spin" />}
           Generate Shopping List
           {!isGenerating && activeItems.length > 0 && (
-            <>
-              <span className="ml-auto text-xs opacity-70">{activeItems.length} items</span>
-              <ChevronRight className="w-4 h-4" />
-            </>
+            <span className="text-xs opacity-70">{activeItems.length} items</span>
           )}
+          {!isGenerating && <ChevronRight className="w-4 h-4" />}
         </Button>
       </div>
 
@@ -324,17 +336,19 @@ export default function IngredientsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </>
   )
 }
 
-function MealServingRow({ meal, status, adjusted, onAdjust }) {
+function MealServingRow({ meal, status, adjusted, onAdjust, onDismiss }) {
+  const isError = status === 'error'
   return (
-    <div className="flex items-center gap-3 rounded-xl border p-3">
+    <div className={cn('flex items-center gap-3 rounded-xl border p-3', isError && 'opacity-60')}>
       {meal.photo_url ? (
         <img
           src={meal.photo_url}
           alt={meal.name}
-          className="w-10 h-10 rounded-lg object-cover shrink-0"
+          className={cn('w-10 h-10 rounded-lg object-cover shrink-0', isError && 'grayscale')}
         />
       ) : (
         <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center shrink-0 text-base">
@@ -345,29 +359,39 @@ function MealServingRow({ meal, status, adjusted, onAdjust }) {
         <div className="flex items-center gap-1.5">
           <p className="text-sm font-medium leading-snug truncate">{meal.name}</p>
           {status === 'loading' && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground shrink-0" />}
-          {status === 'error' && <AlertTriangle className="w-3 h-3 text-destructive shrink-0" />}
+          {isError && <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />}
         </div>
+        {isError && (
+          <button
+            onClick={onDismiss}
+            className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors mt-0.5"
+          >
+            Remove from list
+          </button>
+        )}
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <button
-          onClick={() => onAdjust(-1)}
-          disabled={adjusted <= 1}
-          className="w-6 h-6 flex items-center justify-center rounded-full border disabled:opacity-30 hover:bg-secondary transition-colors"
-          aria-label="Decrease servings"
-        >
-          <Minus className="w-3 h-3" />
-        </button>
-        <span className="w-14 text-center text-sm font-medium tabular-nums">
-          {adjusted} <span className="text-xs text-muted-foreground font-normal">srv</span>
-        </span>
-        <button
-          onClick={() => onAdjust(1)}
-          className="w-6 h-6 flex items-center justify-center rounded-full border hover:bg-secondary transition-colors"
-          aria-label="Increase servings"
-        >
-          <Plus className="w-3 h-3" />
-        </button>
-      </div>
+      {!isError && (
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => onAdjust(-1)}
+            disabled={adjusted <= 1}
+            className="w-6 h-6 flex items-center justify-center rounded-full border disabled:opacity-30 hover:bg-secondary transition-colors"
+            aria-label="Decrease servings"
+          >
+            <Minus className="w-3 h-3" />
+          </button>
+          <span className="w-14 text-center text-sm font-medium tabular-nums">
+            {adjusted} <span className="text-xs text-muted-foreground font-normal">srv</span>
+          </span>
+          <button
+            onClick={() => onAdjust(1)}
+            className="w-6 h-6 flex items-center justify-center rounded-full border hover:bg-secondary transition-colors"
+            aria-label="Increase servings"
+          >
+            <Plus className="w-3 h-3" />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

@@ -4,7 +4,7 @@ import Sidebar from './Sidebar'
 import BottomNav from './BottomNav'
 
 export default function AppLayout() {
-  const { isLoading, isAuthenticated } = useAuth()
+  const { isLoading, isAuthenticated, isGuest } = useAuth()
 
   if (isLoading) {
     return (
@@ -14,7 +14,7 @@ export default function AppLayout() {
     )
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !isGuest) {
     return <Navigate to="/sign-in" replace />
   }
 

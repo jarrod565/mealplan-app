@@ -1,6 +1,7 @@
 import { useHidden } from '@/contexts/HiddenContext'
 import { EyeOff, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import UserAvatar from '@/components/layout/UserAvatar'
 import { toast } from 'sonner'
 
 function formatDate(iso) {
@@ -14,22 +15,6 @@ function formatDate(iso) {
 export default function HiddenPage() {
   const { hiddenMeals, removeFromHidden } = useHidden()
 
-  if (hiddenMeals.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center gap-5">
-        <div className="w-16 h-16 rounded-2xl bg-secondary flex items-center justify-center">
-          <EyeOff className="w-7 h-7 text-primary/50" />
-        </div>
-        <div>
-          <p className="font-semibold text-base">No hidden meals</p>
-          <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
-            Meals you swipe Never on will appear here. You can restore them any time.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
   async function handleRestore(meal) {
     try {
       await removeFromHidden(meal.meal_id)
@@ -40,30 +25,51 @@ export default function HiddenPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-7">
-      <div className="flex items-center justify-between mb-5">
-        <h1 className="text-2xl font-bold tracking-tight">Hidden</h1>
-        <span className="text-sm text-muted-foreground font-medium">
-          {hiddenMeals.length} meal{hiddenMeals.length !== 1 ? 's' : ''}
-        </span>
-      </div>
+    <>
+      <header className="flex items-center justify-between px-5 py-4 border-b bg-background/95 backdrop-blur-sm sticky top-0 z-10">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">Hidden</h1>
+          {hiddenMeals.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {hiddenMeals.length} meal{hiddenMeals.length !== 1 ? 's' : ''}
+            </p>
+          )}
+        </div>
+        <UserAvatar />
+      </header>
 
-      <div className="space-y-3">
-        {hiddenMeals.map((meal) => (
-          <HiddenCard
-            key={meal.meal_id}
-            meal={meal}
-            onRestore={() => handleRestore(meal)}
-          />
-        ))}
-      </div>
-    </div>
+      {hiddenMeals.length === 0 ? (
+        <div className="flex flex-col items-center justify-center min-h-[50vh] px-6 text-center gap-5">
+          <div className="w-16 h-16 rounded-2xl bg-secondary flex items-center justify-center">
+            <EyeOff className="w-7 h-7 text-primary/50" />
+          </div>
+          <div>
+            <p className="font-semibold text-base">No hidden meals</p>
+            <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
+              Meals you swipe Never on will appear here. You can restore them any time.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="max-w-2xl mx-auto px-4 py-5">
+          <div className="space-y-3">
+            {hiddenMeals.map((meal) => (
+              <HiddenCard
+                key={meal.meal_id}
+                meal={meal}
+                onRestore={() => handleRestore(meal)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
 function HiddenCard({ meal, onRestore }) {
   return (
-    <div className="flex items-center gap-4 rounded-2xl border bg-card p-4 shadow-sm">
+    <div className="flex items-center gap-4 rounded-2xl bg-card shadow-sm p-4">
       <div className="relative w-[72px] h-[72px] rounded-xl overflow-hidden shrink-0">
         {meal.photo_url ? (
           <img

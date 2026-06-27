@@ -39,12 +39,12 @@ function FacebookIcon() {
 }
 
 export default function SignInPage() {
-  const { isAuthenticated, isLoading, signInWithGoogle, signInWithFacebook } = useAuth()
+  const { isAuthenticated, isLoading, isGuest, signInWithGoogle, signInWithFacebook, enterGuestMode } = useAuth()
   const [googleLoading, setGoogleLoading] = useState(false)
   const [facebookLoading, setFacebookLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  if (!isLoading && isAuthenticated) {
+  if (!isLoading && (isAuthenticated || isGuest)) {
     return <Navigate to="/plan" replace />
   }
 
@@ -75,13 +75,14 @@ export default function SignInPage() {
       <div className="w-full max-w-sm space-y-10">
         {/* Branding */}
         <div className="text-center space-y-4">
-          <div className="text-7xl" aria-hidden="true">🥗</div>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">MealPlan</h1>
-            <p className="text-base text-muted-foreground mt-2 leading-relaxed">
-              Weekly meal planning for your household
-            </p>
-          </div>
+          <img
+            src="/dinder-logo.svg"
+            alt="Dinder"
+            className="h-10 w-auto mx-auto dark:[filter:brightness(0)_invert(1)]"
+          />
+          <p className="text-base text-muted-foreground leading-relaxed">
+            Weekly meal planning for your household
+          </p>
         </div>
 
         {/* SSO buttons */}
@@ -105,6 +106,16 @@ export default function SignInPage() {
             <FacebookIcon />
             {facebookLoading ? 'Redirecting…' : 'Continue with Facebook'}
           </Button>
+
+          <div className="pt-1 text-center">
+            <button
+              onClick={enterGuestMode}
+              disabled={googleLoading || facebookLoading}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors underline-offset-4 hover:underline disabled:pointer-events-none"
+            >
+              Continue as Guest
+            </button>
+          </div>
         </div>
 
         {error && (

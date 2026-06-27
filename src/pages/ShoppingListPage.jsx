@@ -17,6 +17,7 @@ import { CATEGORIES } from '@/lib/units'
 import { cn, formatIngredientQty } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Loader2, ShoppingCart, Trash2, Clipboard, Share2 } from 'lucide-react'
+import UserAvatar from '@/components/layout/UserAvatar'
 
 const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
 
@@ -67,46 +68,58 @@ export default function ShoppingListPage() {
     setClearDialogOpen(false)
   }
 
+  const listHeader = (
+    <header className="flex items-center justify-between px-5 py-4 border-b bg-background/95 backdrop-blur-sm sticky top-0 z-10">
+      <h1 className="text-xl font-bold tracking-tight">Shopping List</h1>
+      <UserAvatar />
+    </header>
+  )
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-      </div>
+      <>
+        {listHeader}
+        <div className="flex items-center justify-center min-h-[50vh]">
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+        </div>
+      </>
     )
   }
 
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center gap-5">
-        <div className="w-16 h-16 rounded-2xl bg-secondary flex items-center justify-center">
-          <ShoppingCart className="w-7 h-7 text-primary/50" />
+      <>
+        {listHeader}
+        <div className="flex flex-col items-center justify-center min-h-[50vh] px-6 text-center gap-5">
+          <div className="w-16 h-16 rounded-2xl bg-secondary flex items-center justify-center">
+            <ShoppingCart className="w-7 h-7 text-primary/50" />
+          </div>
+          <div>
+            <p className="font-semibold text-base">No shopping list yet</p>
+            <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
+              Add meals to your basket, review ingredients, and generate a list.
+            </p>
+          </div>
+          <Button asChild variant="outline">
+            <Link to="/plan">Go to Plan</Link>
+          </Button>
         </div>
-        <div>
-          <p className="font-semibold text-base">No shopping list yet</p>
-          <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
-            Add meals to your basket, review ingredients, and generate a list.
-          </p>
-        </div>
-        <Button asChild variant="outline">
-          <Link to="/plan">Go to Plan</Link>
-        </Button>
-      </div>
+      </>
     )
   }
 
   return (
     <>
-      <div className="max-w-2xl mx-auto px-4 py-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-1">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Shopping List</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {unchecked > 0
-                ? `${unchecked} of ${items.length} remaining`
-                : `All ${items.length} items checked`}
-            </p>
-          </div>
+      <header className="flex items-center justify-between px-5 py-4 border-b bg-background/95 backdrop-blur-sm sticky top-0 z-10">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">Shopping List</h1>
+          <p className="text-xs text-muted-foreground">
+            {unchecked > 0
+              ? `${unchecked} of ${items.length} remaining`
+              : `All ${items.length} items checked`}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
@@ -116,8 +129,11 @@ export default function ShoppingListPage() {
             <Trash2 className="w-3.5 h-3.5" />
             Clear
           </Button>
+          <UserAvatar />
         </div>
+      </header>
 
+      <div className="max-w-2xl mx-auto px-4 py-5">
         {/* Export actions */}
         <div className="flex gap-2 mb-5 mt-3">
           <Button variant="outline" size="sm" onClick={handleCopy} className="gap-1.5">
