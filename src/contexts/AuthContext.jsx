@@ -103,14 +103,6 @@ export function AuthProvider({ children }) {
     if (error) throw error
   }
 
-  async function signInWithFacebook() {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'facebook',
-      options: { redirectTo: `${window.location.origin}/plan` },
-    })
-    if (error) throw error
-  }
-
   async function signOut() {
     if (isGuest) {
       // Exit guest mode but preserve localStorage data so it's there if they return as guest
@@ -155,7 +147,6 @@ export function AuthProvider({ children }) {
         subscriptionTier,
         isPremium,
         signInWithGoogle,
-        signInWithFacebook,
         signOut,
         enterGuestMode,
         updateSubscription,
