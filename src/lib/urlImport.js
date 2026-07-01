@@ -73,20 +73,36 @@ export async function fetchRecipeMetadata(url) {
       headers: { Accept: 'application/json' },
     })
 
+    console.log('[urlImport] raw response', response)
+
+    let data = null
+    try {
+      data = await response.json()
+      console.log('[urlImport] parsed json', data)
+    } catch {
+      data = null
+      console.log('[urlImport] parsed json failed')
+    }
+
     if (!response.ok) {
+      if (data?.error || data?.details) {
+        throw makeFetchError('page_unreadable')
+      }
       throw makeFetchError('fetch_failed')
     }
 
-    const data = await response.json()
     return {
-      title: data.title || null,
-      image_url: data.image_url || null,
-      source_domain: data.source_domain || getSourceDomain(targetUrl),
-      looksLikeRecipe: Boolean(data.looksLikeRecipe),
+      title: data?.title || null,
+      image_url: data?.image_url || null,
+      source_domain: data?.source_domain || getSourceDomain(targetUrl),
+      looksLikeRecipe: Boolean(data?.looksLikeRecipe),
     }
   } catch (error) {
     if (error?.name === 'AbortError' || error?.type === 'timeout') {
       throw makeFetchError('timeout')
+    }
+    if (error?.type === 'page_unreadable') {
+      throw makeFetchError('page_unreadable')
     }
     throw makeFetchError('fetch_failed')
   }
