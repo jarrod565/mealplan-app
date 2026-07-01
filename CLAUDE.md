@@ -71,6 +71,13 @@ Built as both a personal utility and a portfolio case study demonstrating end-to
   - For You swipe deck (Pinterest pins)
   - Schema.org JSON-LD ingredient extraction
   - Navigation restructure (see below)
+- 🔄 CB_10 — URL Recipe Import
+  - Paste-a-URL input field on Basket screen
+  - Open Graph metadata fetch (title + image)
+  - Recipe detection via Schema.org
+  - Duplicate URL detection
+  - Full error message matrix
+  - Ingredient extraction deferred to CB_06 pipeline
 
 ---
 
@@ -138,6 +145,7 @@ CB_09 introduces a reusable pattern for external integrations. Key principles:
 - Instacart integration
 - Alexa shopping list
 - Webhooks (placeholder exists in Settings)
+- URL Recipe Import (CB_10) — paste any recipe URL directly into the basket
 
 **Premium AI features:**
 - AI-suggested meals based on swipe history
@@ -183,6 +191,7 @@ Full product specifications live in `/docs/capability-briefs/`. These are the au
 | CB_07_Shopping_List.md | Shopping list persistence | ✅ Built |
 | CB_08_Export_Share.md | Clipboard copy and share sheet | ✅ Built |
 | CB_09_Connected_Sources.md | Pinterest OAuth, For You deck, ingredient extraction, nav restructure | 🔄 In Progress |
+| CB_10_URL_Recipe_Import.md | Paste-a-URL import, Open Graph fetch, recipe detection, basket card | 🔄 In Progress |
 
 ---
 
