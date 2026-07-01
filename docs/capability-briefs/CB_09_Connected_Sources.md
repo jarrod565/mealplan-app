@@ -163,23 +163,25 @@ This capability depends on:
 
 ### Board Selection
 
-- After successful OAuth connection, the user must be presented with a list of their Pinterest boards
+- After successful OAuth connection, the user must be presented with a list of their Pinterest boards fetched fresh from the Pinterest API
 - The user must be able to select one or more boards to pull from
 - Board selection is a multi-select checklist — the same pattern as Dietary Preferences
+- Only the selected board IDs are stored in Supabase — board names, pin counts, and other metadata are never persisted
 - Board selection must be editable at any time from Settings → Integrations → Pinterest
 - Changes to board selection take effect on the next For You session
 - At least one board must be selected for the For You destination to be active
 
 ### For You Card Deck
 
-- For You cards are fetched from selected Pinterest boards via the Pinterest API
+- For You cards are fetched from selected Pinterest boards via the Pinterest API each session
 - Cards are paginated using Pinterest's cursor-based pagination and randomized before display
 - A new batch is fetched only when the current pool is depleted
 - No-swiped and Yes-swiped pin IDs are excluded from the current session pool (client-side, session-only)
+- All Pinterest pin display data (image, title, board name) is held in React state only — never written to Supabase
 - For You cards display: pin image (natural aspect ratio, aligned to top), pin title, and a footer showing source and board name in the format: `Pinterest / [Board Name]`
 - The following are hidden on For You cards: Never button, ingredients drawer, prep time, difficulty badge
 - The Favorites star is visible and functional on For You cards
-- The Yes button adds the pin to the shared Basket
+- The Yes button stores only the pin ID and destination URL in the Basket — not the image, title, or any other Pinterest content
 
 ### For You Empty State
 
@@ -223,6 +225,7 @@ This capability depends on:
 
 ## Constraints
 
+- **Pinterest API compliance:** Per Pinterest Developer Guidelines, no Pinterest API data (pin images, titles, descriptions, board metadata) may be stored in Supabase or any server-side storage. Only pin IDs, destination URLs, and selected board IDs may be persisted. Pinterest data must be fetched fresh from the API each session
 - Pinterest OAuth must use Pinterest API v5
 - Token storage must use Supabase on the subscription record — no tokens stored client-side beyond the current session
 - Schema.org JSON-LD extraction must be performed client-side at ingredient aggregation time
@@ -322,17 +325,17 @@ This capability depends on:
 - `refresh_token` (encrypted)
 - `token_expiry`
 - `status` (connected | reconnect_required)
-- `config` (JSON — source-specific config, e.g. selected board IDs for Pinterest)
+- `selected_board_ids` (array of board ID strings — IDs only, no Pinterest board metadata)
 - `created_at`
 - `updated_at`
 
-**Pinterest board (fetched at connection time, stored in config):**
+**Pinterest board (fetched fresh from Pinterest API at session start — never stored in Supabase):**
 - `board_id`
 - `board_name`
 - `pin_count`
-- `is_selected` (boolean)
+- `is_selected` (derived by matching against `selected_board_ids`)
 
-**Pinterest pin card (session-only, not persisted beyond basket):**
+**Pinterest pin card (session-only React state — never persisted to Supabase):**
 - `pin_id`
 - `source_type` (pinterest)
 - `board_id`
@@ -340,7 +343,12 @@ This capability depends on:
 - `title`
 - `image_url`
 - `destination_url`
-- `added_to_basket_at` (if Yes-swiped)
+
+**Basket entry for Pinterest pins (stored in Supabase — pin ID and destination URL only):**
+- `pin_id` (Pinterest pin ID — used to re-fetch pin data from Pinterest API at ingredient aggregation time)
+- `destination_url` (the recipe URL — needed for ingredient extraction; this is the user's own saved URL, not Pinterest content)
+- `source_type` (pinterest)
+- `added_at`
 
 **Feature flag set — Pinterest source:**
 - `yes` — true
@@ -354,12 +362,14 @@ This capability depends on:
 
 ### Key Rules
 
+- **Pinterest API compliance:** No Pinterest pin content (images, titles, descriptions) is ever stored in Supabase. Pinterest data is fetched fresh from the API each session and held in React state only
+- Only the pin ID and destination URL are stored in the Basket — pin display data (image, title, board name) is re-fetched from the Pinterest API when the Basket renders
+- Board metadata (name, pin count) is fetched fresh from the Pinterest API at each For You session start — only the array of selected board IDs is persisted to Supabase
 - Connected Source framework is source-agnostic — Pinterest-specific logic lives in a Pinterest adapter, not in the core card deck or basket
 - Feature flags are read from the Connected Source record at render time — card UI is driven by flags, not hardcoded per source
 - Token refresh is attempted at the start of every For You session before any API calls are made
 - Schema.org JSON-LD extraction runs client-side using the pin's destination URL — no server-side proxy required for most sites
 - Spoonacular extract endpoint is never called automatically — only on explicit user tap
 - Session swipe state (No-swiped pin IDs) is stored in React state only — never persisted to Supabase
-- Yes-swiped pins are written to the Basket in Supabase immediately on swipe, using the same Basket record structure as CB_03
 - For You is conditionally rendered in navigation — hidden when no Pinterest boards are selected or source status is reconnect_required
 - Nav label visibility breakpoint (< 360px) must be implemented with a CSS media query, not JavaScript
