@@ -9,7 +9,7 @@ export default function PrivacyPage() {
           <h1 className="text-3xl font-semibold tracking-tight">Dinder Privacy Policy</h1>
           <p className="text-base leading-7 text-muted-foreground">
             Dinder is a simple meal planning app for a household. This page explains what information
-            is stored and how it is used.
+            is stored and how it is used. It is public and can be viewed without signing in.
           </p>
         </div>
 
@@ -46,8 +46,8 @@ export default function PrivacyPage() {
           <h2 className="text-lg font-semibold">Contact</h2>
           <p className="mt-3 text-sm leading-7 text-muted-foreground">
             If you have any questions about this privacy policy, please contact us at{' '}
-            <a className="text-foreground underline underline-offset-4" href="mailto:hello@dinder.app">
-              hello@dinder.app
+            <a className="text-foreground underline underline-offset-4" href="mailto:jarrod565@gmail.com">
+              jarrod565@gmail.com
             </a>
             .
           </p>
