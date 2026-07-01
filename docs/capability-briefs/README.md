@@ -34,6 +34,7 @@ Capability Briefs are written for both human collaborators and AI-assisted devel
 | CB_06 | Ingredient Aggregation | Smart combining, unit normalization, serving size scaling, list editing |
 | CB_07 | Shopping List | Persistent checklist, check-off state, clear flow |
 | CB_08 | Export / Share | Clipboard copy, native share sheet, plain text formatting |
+| CB_09 | Connected Sources (Pinterest — v1) | Reusable integration framework, Pinterest OAuth, For You deck, Schema.org ingredient extraction |
 
 ---
 
@@ -45,21 +46,24 @@ CB_01 Authentication & Subscription
 CB_02 Dietary Preferences
        ↓
 CB_03 Meal Discovery (Swipe Experience)
-       ↓         ↓            ↓
-CB_04         CB_05         CB_06 Ingredient Aggregation
-Favorites     Hidden               ↓
-                             CB_07 Shopping List
-                                   ↓
-                             CB_08 Export / Share
+       ↓         ↓            ↓            ↓
+CB_04         CB_05         CB_06         CB_09 Connected Sources
+Favorites     Hidden        Ingredient         (Pinterest — v1)
+                            Aggregation
+                                 ↓
+                            CB_07 Shopping List
+                                 ↓
+                            CB_08 Export / Share
 ```
 
 All capabilities depend on CB_01 for session, subscription tier, and account-level settings.
+CB_09 depends on CB_03 (shared Basket, card pattern), CB_04 (Favorites), and CB_06 (ingredient aggregation).
 
 ---
 
 ## Application Overview
 
-**App concept:** A weekly meal planning PWA for households. Users swipe through meal ideas, build a basket of selected meals, combine ingredients into a smart shopping list, and export that list to their preferred shopping app or voice assistant.
+**App concept:** A weekly meal planning PWA for households. Users swipe through meal ideas (Explore) or their own saved recipes from connected sources (For You), build a basket of selected meals, combine ingredients into a smart shopping list, and export that list to their preferred shopping app or voice assistant.
 
 **Target users:** Households of two sharing a single subscription.
 
@@ -70,14 +74,27 @@ All capabilities depend on CB_01 for session, subscription tier, and account-lev
 - Backend / Auth: Supabase
 - Payments: Stripe
 - Recipe data: Spoonacular API
+- Connected Sources: Pinterest API v5 (v1), extensible to future integrations
 
-**Navigation (mobile):** Bottom navigation bar — Plan, Basket, Favorites, Hidden, Settings
+**Navigation (mobile):** Bottom navigation bar — Explore, For You (conditional), List, Favorites, Hidden. Basket is a header icon. Settings is accessible via user avatar in the top right header.
 
-**Navigation (desktop):** Sidebar — same five destinations
+**Navigation (desktop):** Sidebar — same destinations. Labels hidden on viewports narrower than 360px (mobile bottom nav only).
 
 **Subscription tiers:**
-- **Free** — full access to all core features (swipe, basket, aggregation, shopping list, export)
+- **Free** — full access to all core features (swipe, basket, aggregation, shopping list, export, connected sources)
 - **Premium** — all Free features plus AI-powered capabilities (future — not in scope for v1)
+
+---
+
+## Connected Sources Framework
+
+CB_09 introduces a reusable Connected Sources pattern. Each Connected Source is an external platform that supplies meal cards to the deck. Pinterest is the first implementation.
+
+**Key architectural principles:**
+- Source-specific logic lives in an adapter — not in the core card deck or basket
+- Feature flags per source define which card interactions are available (Yes, No, Never, Favorites, Ingredients, source footer)
+- All Connected Sources feed into the shared Basket, Ingredient Aggregation, and Shopping List flow
+- Future sources follow the same adapter pattern — no core architecture changes required
 
 ---
 
@@ -87,3 +104,6 @@ All capabilities depend on CB_01 for session, subscription tier, and account-lev
 - **Session-only** — data that is client-side and resets when the app is closed
 - **v1** — the initial build scope; features marked as future enhancements are explicitly out of scope
 - **CB_XX references** — when a brief references another brief by number, read that brief before implementing the dependency
+- **Connected Source** — an external platform integrated via the CB_09 framework that supplies cards to the For You deck
+- **Explore** — the Spoonacular-powered swipe deck (formerly Plan)
+- **For You** — the Connected Sources swipe deck (Pinterest pins from selected boards)

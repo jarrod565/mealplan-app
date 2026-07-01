@@ -8,7 +8,7 @@ Built as both a personal utility and a portfolio case study demonstrating end-to
 
 **Live URL:** https://mealplan-app-drab.vercel.app
 **GitHub:** https://github.com/jarrod565/mealplan-app
-**Status:** Deployed and functional — v1 complete
+**Status:** v1 deployed and functional — v2 in progress (CB_09 Connected Sources / Pinterest)
 
 ---
 
@@ -23,6 +23,7 @@ Built as both a personal utility and a portfolio case study demonstrating end-to
 | Database | Supabase (Postgres) |
 | Payments | Stripe (Free / Premium tiers — Stripe not fully wired in v1) |
 | Recipe Data | Spoonacular API |
+| Connected Sources | Pinterest API v5 (CB_09 — in progress) |
 | Hosting | Vercel (auto-deploys from GitHub main branch) |
 
 ---
@@ -39,6 +40,8 @@ Built as both a personal utility and a portfolio case study demonstrating end-to
 - **Guest mode:** Full app access with localStorage only — no Supabase writes
 - **Facebook SSO:** Removed in v1 — Google only
 - **Stripe:** Configured but not fully active in v1 — Premium tier UI exists, upgrade flow is placeholder
+- **Connected Sources:** Reusable integration framework introduced in CB_09 — Pinterest is v1 implementation; future sources follow the same adapter pattern
+- **Ingredient extraction (Pinterest):** Schema.org JSON-LD scraped client-side at basket time; Spoonacular extract endpoint as user-triggered fallback only
 
 ---
 
@@ -60,18 +63,30 @@ Built as both a personal utility and a portfolio case study demonstrating end-to
 - ✅ Dinder logo (SVG wordmark with icon)
 - ✅ Deployed to Vercel with Google OAuth working on desktop and iPhone
 
+## What's In Progress (v2)
+
+- 🔄 CB_09 — Connected Sources (Pinterest integration)
+  - Pinterest OAuth + token management
+  - Board selection UI
+  - For You swipe deck (Pinterest pins)
+  - Schema.org JSON-LD ingredient extraction
+  - Navigation restructure (see below)
+
 ---
 
 ## Navigation Structure
 
-**5 destinations (bottom nav on mobile, sidebar on desktop):**
-- **Plan** — swipe deck
-- **Basket** — selected meals
-- **List** — shopping list
-- **Favorites** — starred meals
-- **Hidden** — dismissed meals
+**Current (v1):**
+- Bottom nav (mobile) / sidebar (desktop): Plan, Basket, List, Favorites, Hidden
+- Settings accessible via user avatar in top right header
 
-**Settings** is accessible via user avatar in the top right header only — not in the nav.
+**Upcoming (v2 — CB_09):**
+- Bottom nav (mobile) / sidebar (desktop): Explore, For You (conditional), List, Favorites, Hidden
+- Basket moves to top header icon (no label) next to user avatar
+- "Plan" renamed to "Explore"
+- "For You" added — only visible when at least one Pinterest board is connected and selected
+- Nav labels hidden on viewports narrower than 360px (mobile only)
+- Settings remains accessible via user avatar only
 
 ---
 
@@ -81,7 +96,28 @@ Built as both a personal utility and a portfolio case study demonstrating end-to
 - **Palette (dark):** Warm dark charcoal surfaces, orange/amber accent carries through
 - **Typography:** Clean sans-serif, strong hierarchy, generous whitespace
 - **Vibe:** Fresh and natural — inspired by Zillow and Tonal simplicity
-- **Swipe card:** Full-bleed photo, difficulty + prep time badges overlaid top left, favorite heart top right, meal name + ingredients row below as card footer, action buttons overlaid on photo
+- **Swipe card (Explore):** Full-bleed photo, difficulty + prep time badges overlaid top left, favorite heart top right, meal name + ingredients row below as card footer, action buttons overlaid on photo
+- **Swipe card (For You / Pinterest):** Natural aspect ratio image aligned to top, pin title, source footer ("Pinterest / [Board Name]"), no difficulty/prep time/Never button/ingredients drawer
+
+---
+
+## Connected Sources Framework (CB_09)
+
+CB_09 introduces a reusable pattern for external integrations. Key principles:
+
+- Each Connected Source has a source type, auth method, feature flag set, and card schema
+- Feature flags define which interactions are available per source (Yes, No, Never, Favorites, Ingredients, source footer)
+- Source-specific logic lives in an adapter — not in the core card deck or basket
+- All Connected Sources share the same Basket, Ingredient Aggregation, and Shopping List flow
+- Pinterest is the first adapter — future sources follow the same pattern without core architecture changes
+
+**Pinterest-specific:**
+- OAuth via Pinterest API v5
+- Tokens stored encrypted on subscription record in Supabase
+- Automatic token refresh before each For You session
+- Board selection persisted in Connected Source config (JSON)
+- Cursor-based pagination, randomized per session
+- Schema.org JSON-LD extraction client-side; Spoonacular extract as user-triggered fallback
 
 ---
 
@@ -95,18 +131,19 @@ Built as both a personal utility and a portfolio case study demonstrating end-to
 
 ---
 
-## What's Planned (Not Built)
+## What's Planned (Not Yet Built)
+
+**Connected Sources (future beyond Pinterest):**
+- AnyList integration
+- Instacart integration
+- Alexa shopping list
+- Webhooks (placeholder exists in Settings)
 
 **Premium AI features:**
 - AI-suggested meals based on swipe history
 - Smart ingredient substitutions
 - Medical condition-aware filtering (e.g. Gout, Diabetes)
 - Natural language meal planning ("plan a cozy week of comfort food")
-
-**Integrations (future):**
-- Instacart API
-- Alexa shopping list
-- Webhooks (placeholder exists in Settings)
 
 **Other future enhancements:**
 - Apple Sign-In
@@ -127,23 +164,25 @@ Built as both a personal utility and a portfolio case study demonstrating end-to
 - https://mealplan-app.vercel.app/**
 
 **Migrations:** All 4 migration files have been run against the hosted Supabase project.
+**CB_09 migration:** Not yet written — required for Connected Sources table.
 
 ---
 
 ## Capability Briefs
 
-Full product specifications live in `/docs/capability-briefs/`. These were written before implementation and served as the authoritative source of truth for Claude Code during development.
+Full product specifications live in `/docs/capability-briefs/`. These are the authoritative source of truth for all implementation decisions.
 
-| File | Capability |
-|---|---|
-| CB_01_Auth_Subscription.md | Authentication, SSO, sessions, subscription tiers |
-| CB_02_Dietary_Preferences.md | Dietary restriction filters |
-| CB_03_Meal_Discovery.md | Swipe deck, basket, Never flow |
-| CB_04_Favorites.md | Favorites management |
-| CB_05_Hidden.md | Hidden/Never pile management |
-| CB_06_Ingredient_Aggregation.md | Smart ingredient combining |
-| CB_07_Shopping_List.md | Shopping list persistence |
-| CB_08_Export_Share.md | Clipboard copy and share sheet |
+| File | Capability | Status |
+|---|---|---|
+| CB_01_Auth_Subscription.md | Authentication, SSO, sessions, subscription tiers | ✅ Built |
+| CB_02_Dietary_Preferences.md | Dietary restriction filters | ✅ Built |
+| CB_03_Meal_Discovery.md | Swipe deck, basket, Never flow | ✅ Built |
+| CB_04_Favorites.md | Favorites management | ✅ Built |
+| CB_05_Hidden.md | Hidden/Never pile management | ✅ Built |
+| CB_06_Ingredient_Aggregation.md | Smart ingredient combining | ✅ Built |
+| CB_07_Shopping_List.md | Shopping list persistence | ✅ Built |
+| CB_08_Export_Share.md | Clipboard copy and share sheet | ✅ Built |
+| CB_09_Connected_Sources.md | Pinterest OAuth, For You deck, ingredient extraction, nav restructure | 🔄 In Progress |
 
 ---
 
@@ -166,4 +205,4 @@ Dinder was conceived, specified, and built using a structured workflow:
 3. Claude Code used for full implementation pass against the briefs
 4. Iterative UI polish and bug fixes via Claude Code
 
-This project demonstrates the full arc: problem definition → product specification → AI-assisted implementation → deployment.
+This project demonstrates the full arc: problem definition → product specification → AI-assisted implementation → deployment → iteration.
