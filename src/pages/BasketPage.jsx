@@ -120,6 +120,8 @@ export default function BasketPage() {
     } catch (error) {
       if (error?.type === 'timeout') {
         setUrlError('This is taking too long. Check the link and try again.')
+      } else if (error?.type === 'page_unreadable') {
+        setUrlError("We couldn't read this page. Check the link and try again.")
       } else {
         setUrlError("We couldn't reach this page. Check the link and try again.")
       }
