@@ -2,8 +2,20 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useBasket } from '@/contexts/BasketContext'
 import { fetchMealDetails } from '@/lib/spoonacular'
+import { fetchRecipeMetadata, isPinterestUrl, isValidUrl, normalizeUrl } from '@/lib/urlImport'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import {
   Sheet,
   SheetClose,
@@ -11,19 +23,31 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import UserAvatar from '@/components/layout/UserAvatar'
-import { Clock, Loader2, ShoppingBasket, ChevronRight, Trash2, X } from 'lucide-react'
+import { Clock, Loader2, ShoppingBasket, ChevronRight, Trash2, X, Link as LinkIcon } from 'lucide-react'
 import { cn, formatIngredientQty } from '@/lib/utils'
 
 export default function BasketPage() {
-  const { basketItems, basketCount, removeFromBasket } = useBasket()
+  const { basketItems, basketCount, removeFromBasket, addToBasket } = useBasket()
 
   const [openMealId, setOpenMealId] = useState(null)
   const [drawerDetails, setDrawerDetails] = useState(null)
   const [drawerLoading, setDrawerLoading] = useState(false)
+  const [urlInput, setUrlInput] = useState('')
+  const [urlError, setUrlError] = useState('')
+  const [isImporting, setIsImporting] = useState(false)
+  const [confirmState, setConfirmState] = useState(null)
   const cacheRef = useRef({})
+  const inputRef = useRef(null)
 
   useEffect(() => {
     if (!openMealId) return
+
+    const selectedMeal = basketItems.find((m) => m.meal_id === openMealId) ?? null
+    if (selectedMeal?.source_type === 'url_import') {
+      setDrawerLoading(false)
+      setDrawerDetails({ source_type: 'url_import', title: selectedMeal.title || selectedMeal.name })
+      return
+    }
 
     if (cacheRef.current[openMealId]) {
       setDrawerDetails(cacheRef.current[openMealId])
@@ -43,7 +67,7 @@ export default function BasketPage() {
         setDrawerDetails({ error: true })
       })
       .finally(() => setDrawerLoading(false))
-  }, [openMealId])
+  }, [openMealId, basketItems])
 
   const openMeal = basketItems.find((m) => m.meal_id === openMealId) ?? null
 
@@ -55,23 +79,149 @@ export default function BasketPage() {
     setOpenMealId(null)
   }
 
+  async function handleAddMeal() {
+    const rawValue = urlInput.trim()
+    if (!isValidUrl(rawValue)) {
+      setUrlError('Please enter a valid URL')
+      inputRef.current?.focus()
+      return
+    }
+
+    const normalizedUrl = normalizeUrl(rawValue)
+    const duplicate = basketItems.some((item) => item.destination_url === normalizedUrl)
+    if (duplicate) {
+      setConfirmState({ type: 'duplicate', url: normalizedUrl })
+      setUrlError('')
+      return
+    }
+
+    if (isPinterestUrl(normalizedUrl)) {
+      setUrlError('Pinterest links work best through the Pinterest integration. Open Settings → Integrations to connect Pinterest.')
+      inputRef.current?.focus()
+      return
+    }
+
+    setIsImporting(true)
+    setUrlError('')
+
+    try {
+      const metadata = await fetchRecipeMetadata(normalizedUrl)
+      if (!metadata.title) {
+        setUrlError("We couldn't read this page. Check the link and try again.")
+        return
+      }
+
+      if (!metadata.looksLikeRecipe) {
+        setConfirmState({ type: 'recipe', url: normalizedUrl, metadata })
+        return
+      }
+
+      await addImportedMeal(normalizedUrl, metadata)
+    } catch (error) {
+      if (error?.type === 'timeout') {
+        setUrlError('This is taking too long. Check the link and try again.')
+      } else {
+        setUrlError("We couldn't reach this page. Check the link and try again.")
+      }
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
+  async function addImportedMeal(url, metadata) {
+    const uniqueId = `url-import:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const meal = {
+      meal_id: uniqueId,
+      name: metadata.title || 'Imported recipe',
+      photo_url: metadata.image_url || null,
+      source_type: 'url_import',
+      destination_url: normalizeUrl(url),
+      title: metadata.title || 'Imported recipe',
+      image_url: metadata.image_url || null,
+      source_domain: metadata.source_domain || null,
+      added_at: new Date().toISOString(),
+    }
+
+    await addToBasket(meal)
+    setUrlInput('')
+    setUrlError('')
+    setConfirmState(null)
+  }
+
+  async function handleConfirmImport() {
+    if (!confirmState) return
+    if (confirmState.type === 'duplicate') {
+      const metadata = await fetchRecipeMetadata(confirmState.url)
+      if (!metadata.title) {
+        setUrlError("We couldn't read this page. Check the link and try again.")
+        setConfirmState(null)
+        return
+      }
+      await addImportedMeal(confirmState.url, metadata)
+      return
+    }
+
+    await addImportedMeal(confirmState.url, confirmState.metadata)
+  }
+
   if (basketCount === 0) {
     return (
       <>
         <PageHeader title="Basket" />
-        <div className="flex flex-col items-center justify-center min-h-[50vh] px-6 text-center gap-5">
-          <div className="w-16 h-16 rounded-2xl bg-secondary flex items-center justify-center">
-            <ShoppingBasket className="w-7 h-7 text-primary/50" />
+        <div className="max-w-2xl mx-auto px-4 py-8">
+          <div className="flex flex-col items-center justify-center min-h-[40vh] px-6 text-center gap-5">
+            <div className="w-16 h-16 rounded-2xl bg-secondary flex items-center justify-center">
+              <ShoppingBasket className="w-7 h-7 text-primary/50" />
+            </div>
+            <div>
+              <p className="font-semibold text-base">Your basket is empty</p>
+              <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
+                Swipe right on meals you'd like to cook this week.
+              </p>
+            </div>
+            <Button asChild>
+              <Link to="/plan">Start swiping</Link>
+            </Button>
           </div>
-          <div>
-            <p className="font-semibold text-base">Your basket is empty</p>
-            <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
-              Swipe right on meals you'd like to cook this week.
-            </p>
+
+          <div className="mt-6 rounded-2xl border bg-card p-4 shadow-sm space-y-3">
+            <div>
+              <p className="text-sm font-semibold">Add a recipe by URL</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Paste a recipe link to add it to your basket.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Input
+                ref={inputRef}
+                value={urlInput}
+                onChange={(event) => {
+                  setUrlInput(event.target.value)
+                  if (urlError) setUrlError('')
+                }}
+                onKeyDown={(event) => event.key === 'Enter' && handleAddMeal()}
+                placeholder="Paste a recipe URL"
+                disabled={isImporting}
+                aria-label="Paste a recipe URL"
+              />
+              {urlError && <p className="text-sm text-destructive">{urlError}</p>}
+            </div>
+
+            <Button onClick={handleAddMeal} disabled={isImporting || !urlInput.trim()} className="w-full gap-2 h-11 text-base">
+              {isImporting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Adding meal…
+                </>
+              ) : (
+                <>
+                  Add Meal
+                  <ChevronRight className="w-4 h-4" />
+                </>
+              )}
+            </Button>
           </div>
-          <Button asChild>
-            <Link to="/plan">Start swiping</Link>
-          </Button>
         </div>
       </>
     )
@@ -98,7 +248,46 @@ export default function BasketPage() {
 
         <Separator className="my-6" />
 
-        <Button asChild className="w-full gap-2 h-11 text-base">
+        <div className="rounded-2xl border bg-card p-4 shadow-sm space-y-3">
+          <div>
+            <p className="text-sm font-semibold">Add a recipe by URL</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Paste a recipe link to add it to your basket.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Input
+              ref={inputRef}
+              value={urlInput}
+              onChange={(event) => {
+                setUrlInput(event.target.value)
+                if (urlError) setUrlError('')
+              }}
+              onKeyDown={(event) => event.key === 'Enter' && handleAddMeal()}
+              placeholder="Paste a recipe URL"
+              disabled={isImporting}
+              aria-label="Paste a recipe URL"
+            />
+            {urlError && <p className="text-sm text-destructive">{urlError}</p>}
+          </div>
+
+          <Button onClick={handleAddMeal} disabled={isImporting || !urlInput.trim()} className="w-full gap-2 h-11 text-base">
+            {isImporting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Adding meal…
+              </>
+            ) : (
+              <>
+                Add Meal
+                <ChevronRight className="w-4 h-4" />
+              </>
+            )}
+          </Button>
+        </div>
+
+        <Button asChild className="w-full gap-2 h-11 text-base mt-6">
           <Link to="/ingredients">
             View Ingredients List
             <ChevronRight className="w-4 h-4" />
@@ -114,10 +303,10 @@ export default function BasketPage() {
         >
           {/* Photo header */}
           <div className="relative shrink-0 h-48 bg-secondary">
-            {openMeal?.photo_url ? (
+            {(openMeal?.image_url || openMeal?.photo_url) ? (
               <img
-                src={openMeal.photo_url}
-                alt={openMeal.name}
+                src={openMeal.image_url || openMeal.photo_url}
+                alt={openMeal.title || openMeal.name}
                 className="w-full h-full object-cover"
               />
             ) : (
@@ -134,7 +323,7 @@ export default function BasketPage() {
 
             <div className="absolute bottom-0 left-0 right-0 px-5 pb-4">
               <SheetTitle className="text-white font-bold text-lg leading-snug line-clamp-2">
-                {openMeal?.name}
+                {openMeal?.title || openMeal?.name}
               </SheetTitle>
               {(openMeal?.prep_time != null || openMeal?.difficulty) && (
                 <div className="flex items-center gap-2 mt-1.5 flex-wrap">
@@ -161,7 +350,9 @@ export default function BasketPage() {
                 ? 'Loading ingredients…'
                 : drawerDetails?.error
                   ? 'Ingredients unavailable'
-                  : `Ingredients${drawerDetails?.ingredients?.length ? ` · ${drawerDetails.ingredients.length}` : ''}`}
+                  : drawerDetails?.source_type === 'url_import'
+                    ? 'Ingredients pending'
+                    : `Ingredients${drawerDetails?.ingredients?.length ? ` · ${drawerDetails.ingredients.length}` : ''}`}
             </p>
 
             {drawerLoading && (
@@ -175,6 +366,12 @@ export default function BasketPage() {
               <p className="text-sm text-muted-foreground">
                 Couldn't load ingredients for this meal.
               </p>
+            )}
+
+            {!drawerLoading && drawerDetails?.source_type === 'url_import' && (
+              <div className="rounded-xl border bg-secondary/30 p-4 text-sm text-muted-foreground leading-6">
+                Ingredients for this recipe will be gathered when you view the ingredient list for your basket.
+              </div>
             )}
 
             {!drawerLoading && drawerDetails?.ingredients?.length > 0 && (
@@ -200,6 +397,25 @@ export default function BasketPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      <AlertDialog open={Boolean(confirmState)} onOpenChange={(open) => !open && setConfirmState(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmState?.type === 'duplicate' ? 'This recipe is already in your basket. Add it again?' : 'This doesn\'t look like a recipe page. Do you still want to add it?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmState?.type === 'duplicate'
+                ? 'You already added this link once. Adding it again will create a second basket entry.'
+                : 'We couldn\'t confirm that this page is a recipe, but you can still add it and review it later.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmImport}>Add Anyway</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }
@@ -217,6 +433,10 @@ function PageHeader({ title, subtitle }) {
 }
 
 function BasketCard({ meal, onOpen, onRemove }) {
+  const isUrlImport = meal.source_type === 'url_import'
+  const displayName = meal.title || meal.name
+  const displayImage = meal.image_url || meal.photo_url
+
   return (
     <div className="flex items-stretch rounded-2xl bg-card shadow-sm overflow-hidden">
       {/* Square thumbnail */}
@@ -226,10 +446,10 @@ function BasketCard({ meal, onOpen, onRemove }) {
         aria-label={`View ingredients for ${meal.name}`}
         tabIndex={-1}
       >
-        {meal.photo_url ? (
+        {displayImage ? (
           <img
-            src={meal.photo_url}
-            alt={meal.name}
+            src={displayImage}
+            alt={displayName}
             className="w-full h-full object-cover"
           />
         ) : (
@@ -251,8 +471,14 @@ function BasketCard({ meal, onOpen, onRemove }) {
           </p>
         )}
         <p className="font-semibold text-sm leading-snug line-clamp-2 text-foreground">
-          {meal.name}
+          {displayName}
         </p>
+        {isUrlImport && (
+          <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-secondary/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+            <LinkIcon className="w-3 h-3" />
+            Imported by URL
+          </div>
+        )}
         <div className="flex items-center gap-2 mt-1.5 text-xs text-muted-foreground">
           {meal.prep_time != null && (
             <span className="flex items-center gap-1">
@@ -263,7 +489,12 @@ function BasketCard({ meal, onOpen, onRemove }) {
           {meal.prep_time != null && (
             <span className="text-border">·</span>
           )}
-          <span className="text-primary font-medium">Ingredients</span>
+          {meal.source_domain && (
+            <span className="truncate">{meal.source_domain}</span>
+          )}
+          {!meal.source_domain && (
+            <span className="text-primary font-medium">Ingredients</span>
+          )}
         </div>
       </button>
 
@@ -271,7 +502,7 @@ function BasketCard({ meal, onOpen, onRemove }) {
       <button
         onClick={onRemove}
         className="shrink-0 px-4 flex items-center text-muted-foreground hover:text-destructive transition-colors"
-        aria-label={`Remove ${meal.name} from basket`}
+        aria-label={`Remove ${displayName} from basket`}
       >
         <Trash2 className="w-4 h-4" />
       </button>

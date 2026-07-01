@@ -27,16 +27,22 @@ export function BasketProvider({ children }) {
   }, [subscription?.id, isGuest])
 
   async function addToBasket(meal) {
+    const item = {
+      meal_id: meal.meal_id,
+      name: meal.name,
+      photo_url: meal.photo_url ?? null,
+      prep_time: meal.prep_time ?? null,
+      servings: meal.servings ?? null,
+      difficulty: meal.difficulty ?? null,
+      source_type: meal.source_type ?? 'spoonacular',
+      destination_url: meal.destination_url ?? null,
+      title: meal.title ?? null,
+      image_url: meal.image_url ?? null,
+      source_domain: meal.source_domain ?? null,
+      added_at: meal.added_at ?? new Date().toISOString(),
+    }
+
     if (isGuest) {
-      const item = {
-        meal_id: meal.meal_id,
-        name: meal.name,
-        photo_url: meal.photo_url ?? null,
-        prep_time: meal.prep_time ?? null,
-        servings: meal.servings ?? null,
-        difficulty: meal.difficulty ?? null,
-        added_at: new Date().toISOString(),
-      }
       setBasketItems((prev) => {
         const next = [...prev.filter((b) => b.meal_id !== meal.meal_id), item]
         localStorage.setItem(GUEST_KEY, JSON.stringify(next))
@@ -45,21 +51,31 @@ export function BasketProvider({ children }) {
       return
     }
     if (!subscription?.id) throw new Error('No subscription — please sign out and sign back in.')
-    const item = {
+
+    const persistedItem = {
       subscription_id: subscription.id,
-      meal_id: meal.meal_id,
-      name: meal.name,
-      photo_url: meal.photo_url ?? null,
-      prep_time: meal.prep_time ?? null,
-      servings: meal.servings ?? null,
-      difficulty: meal.difficulty ?? null,
+      ...item,
     }
-    const { data, error } = await supabase
-      .from('basket_items')
-      .upsert(item, { onConflict: 'subscription_id,meal_id' })
-      .select()
-      .single()
-    if (error) throw error
+
+    let data
+    if (meal.source_type === 'url_import') {
+      const { data: inserted, error } = await supabase
+        .from('basket_items')
+        .insert(persistedItem)
+        .select()
+        .single()
+      if (error) throw error
+      data = inserted
+    } else {
+      const { data: upserted, error } = await supabase
+        .from('basket_items')
+        .upsert(persistedItem, { onConflict: 'subscription_id,meal_id' })
+        .select()
+        .single()
+      if (error) throw error
+      data = upserted
+    }
+
     setBasketItems((prev) => {
       const without = prev.filter((b) => b.meal_id !== meal.meal_id)
       return [...without, data]
