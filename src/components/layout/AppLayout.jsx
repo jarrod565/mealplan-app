@@ -1,10 +1,12 @@
-import { Navigate, Outlet } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import Sidebar from './Sidebar'
 import BottomNav from './BottomNav'
 
 export default function AppLayout() {
   const { isLoading, isAuthenticated, isGuest } = useAuth()
+  const location = useLocation()
+  const isPublicRoute = location.pathname === '/privacy' || location.pathname.startsWith('/privacy/')
 
   if (isLoading) {
     return (
@@ -14,7 +16,7 @@ export default function AppLayout() {
     )
   }
 
-  if (!isAuthenticated && !isGuest) {
+  if (!isPublicRoute && !isAuthenticated && !isGuest) {
     return <Navigate to="/sign-in" replace />
   }
 
