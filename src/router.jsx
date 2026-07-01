@@ -9,11 +9,16 @@ import AccountSettingsPage from '@/pages/AccountSettingsPage'
 import DietaryPreferencesPage from '@/pages/DietaryPreferencesPage'
 import IngredientsPage from '@/pages/IngredientsPage'
 import ShoppingListPage from '@/pages/ShoppingListPage'
+import PrivacyPage from '@/pages/PrivacyPage'
 
 export const router = createBrowserRouter([
   {
     path: '/sign-in',
     element: <SignInPage />,
+  },
+  {
+    path: '/privacy',
+    element: <PrivacyPage />,
   },
   {
     path: '/',
