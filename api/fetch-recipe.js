@@ -37,15 +37,6 @@ function looksLikeRecipe(html) {
   return /"@type"\s*:\s*"(Recipe|HowTo)"/i.test(html)
 }
 
-function decodeHtmlEntities(value) {
-  return value
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-}
-
 function decodeJsonLd(value) {
   if (!value) return null
   try {
@@ -111,7 +102,7 @@ async function fetchPage(url) {
 }
 
 export default async function handler(request, response) {
-  const { url } = request.query ?? {}
+  const { url, mode } = request.query ?? {}
 
   if (!url) {
     return response.status(400).json({ error: 'Missing url query parameter' })
@@ -120,13 +111,18 @@ export default async function handler(request, response) {
   try {
     const normalizedUrl = new URL(url)
     const html = await fetchPage(normalizedUrl.toString())
+    const ingredients = extractIngredientsFromHtml(html)
+
+    if (mode === 'ingredients') {
+      return response.status(200).json({ ingredients })
+    }
 
     return response.status(200).json({
       title: extractTitle(html),
       image_url: extractImage(html),
       source_domain: normalizedUrl.hostname.replace(/^www\./, ''),
       looksLikeRecipe: looksLikeRecipe(html),
-      ingredients: extractIngredientsFromHtml(html),
+      ingredients,
     })
   } catch (error) {
     return response.status(502).json({

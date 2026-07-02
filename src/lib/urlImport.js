@@ -36,6 +36,15 @@ export function isPinterestUrl(url) {
   }
 }
 
+function decodeHtmlEntities(value) {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+}
+
 function extractMetaContent(html, propertyNames) {
   const normalized = html.replace(/\r/g, '')
   const patterns = propertyNames.map((name) => new RegExp(`<meta[^>]+(?:property|name)=["']${name}["'][^>]+content=["']([^"']+)["'][^>]*>`, 'i'))
@@ -115,7 +124,7 @@ function makeFetchError(type) {
 export async function fetchRecipeMetadata(url) {
   const normalized = normalizeUrl(url)
   const targetUrl = normalized.startsWith('http') ? normalized : `https://${normalized}`
-  const apiUrl = `${RECIPE_API_ROUTE}?url=${encodeURIComponent(targetUrl)}`
+  const apiUrl = `${RECIPE_API_ROUTE}?url=${encodeURIComponent(targetUrl)}&mode=import`
 
   try {
     const response = await fetchWithTimeout(apiUrl, {
@@ -156,7 +165,7 @@ export async function fetchRecipeMetadata(url) {
 export async function fetchRecipeIngredients(url) {
   const normalized = normalizeUrl(url)
   const targetUrl = normalized.startsWith('http') ? normalized : `https://${normalized}`
-  const apiUrl = `${RECIPE_API_ROUTE}?url=${encodeURIComponent(targetUrl)}`
+  const apiUrl = `${RECIPE_API_ROUTE}?url=${encodeURIComponent(targetUrl)}&mode=ingredients`
 
   try {
     const response = await fetchWithTimeout(apiUrl, {
