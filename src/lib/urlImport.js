@@ -48,6 +48,55 @@ function extractMetaContent(html, propertyNames) {
   return null
 }
 
+function decodeJsonLd(value) {
+  if (!value) return null
+  try {
+    const parsed = JSON.parse(value)
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+export function extractIngredientsFromJsonLd(html) {
+  if (!html || typeof html !== 'string') return []
+
+  const normalized = html.replace(/\r/g, '')
+  const scriptMatches = normalized.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)
+  const candidates = []
+
+  for (const match of scriptMatches) {
+    const decoded = decodeJsonLd(match[1])
+    if (!decoded) continue
+
+    candidates.push(decoded)
+
+    if (Array.isArray(decoded)) {
+      for (const item of decoded) {
+        if (item && typeof item === 'object') candidates.push(item)
+      }
+    }
+  }
+
+  const recipeBlocks = candidates.filter((item) => item && typeof item === 'object' && (item['@type'] === 'Recipe' || item['@type'] === 'HowTo' || item['recipeIngredient']))
+
+  for (const block of recipeBlocks) {
+    const ingredientList = Array.isArray(block.recipeIngredient)
+      ? block.recipeIngredient
+      : Array.isArray(block.recipeIngredients)
+        ? block.recipeIngredients
+        : null
+
+    if (Array.isArray(ingredientList)) {
+      return ingredientList
+        .filter((item) => typeof item === 'string' && item.trim())
+        .map((item) => item.trim())
+    }
+  }
+
+  return []
+}
+
 function fetchWithTimeout(url, options = {}) {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), DIRECT_FETCH_TIMEOUT_MS)
@@ -73,15 +122,11 @@ export async function fetchRecipeMetadata(url) {
       headers: { Accept: 'application/json' },
     })
 
-    console.log('[urlImport] raw response', response)
-
     let data = null
     try {
       data = await response.json()
-      console.log('[urlImport] parsed json', data)
     } catch {
       data = null
-      console.log('[urlImport] parsed json failed')
     }
 
     if (!response.ok) {
@@ -97,6 +142,39 @@ export async function fetchRecipeMetadata(url) {
       source_domain: data?.source_domain || getSourceDomain(targetUrl),
       looksLikeRecipe: Boolean(data?.looksLikeRecipe),
     }
+  } catch (error) {
+    if (error?.name === 'AbortError' || error?.type === 'timeout') {
+      throw makeFetchError('timeout')
+    }
+    if (error?.type === 'page_unreadable') {
+      throw makeFetchError('page_unreadable')
+    }
+    throw makeFetchError('fetch_failed')
+  }
+}
+
+export async function fetchRecipeIngredients(url) {
+  const normalized = normalizeUrl(url)
+  const targetUrl = normalized.startsWith('http') ? normalized : `https://${normalized}`
+  const apiUrl = `${RECIPE_API_ROUTE}?url=${encodeURIComponent(targetUrl)}`
+
+  try {
+    const response = await fetchWithTimeout(apiUrl, {
+      headers: { Accept: 'application/json' },
+    })
+
+    if (!response.ok) {
+      throw makeFetchError('page_unreadable')
+    }
+
+    const data = await response.json()
+    const ingredients = Array.isArray(data?.ingredients) ? data.ingredients : []
+
+    if (ingredients.length > 0) {
+      return ingredients
+    }
+
+    throw makeFetchError('page_unreadable')
   } catch (error) {
     if (error?.name === 'AbortError' || error?.type === 'timeout') {
       throw makeFetchError('timeout')

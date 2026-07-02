@@ -65,8 +65,9 @@ export default function IngredientsPage() {
     const ids = basketItems.map(m => m.meal_id)
     setDetailsMap(Object.fromEntries(ids.map(id => [id, { status: 'loading', data: null }])))
     ids.forEach(async (mealId) => {
+      const meal = basketItems.find(item => item.meal_id === mealId) ?? null
       try {
-        const data = await fetchMealDetails(mealId)
+        const data = await fetchMealDetails(mealId, meal)
         setDetailsMap(prev => ({ ...prev, [mealId]: { status: 'loaded', data } }))
       } catch {
         setDetailsMap(prev => ({ ...prev, [mealId]: { status: 'error', data: null } }))
@@ -362,12 +363,24 @@ function MealServingRow({ meal, status, adjusted, onAdjust, onDismiss }) {
           {isError && <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />}
         </div>
         {isError && (
-          <button
-            onClick={onDismiss}
-            className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors mt-0.5"
-          >
-            Remove from list
-          </button>
+          <div className="flex flex-wrap items-center gap-2 mt-0.5">
+            <button
+              onClick={onDismiss}
+              className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
+            >
+              Remove from list
+            </button>
+            {meal.destination_url && (
+              <a
+                href={meal.destination_url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-medium text-primary underline underline-offset-2"
+              >
+                View recipe
+              </a>
+            )}
+          </div>
         )}
       </div>
       {!isError && (

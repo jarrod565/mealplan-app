@@ -37,6 +37,63 @@ function looksLikeRecipe(html) {
   return /"@type"\s*:\s*"(Recipe|HowTo)"/i.test(html)
 }
 
+function decodeHtmlEntities(value) {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+}
+
+function decodeJsonLd(value) {
+  if (!value) return null
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+function extractIngredientsFromHtml(html) {
+  if (!html || typeof html !== 'string') return []
+
+  const normalized = html.replace(/\r/g, '')
+  const scriptMatches = normalized.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)
+  const candidates = []
+
+  for (const match of scriptMatches) {
+    const decoded = decodeJsonLd(match[1])
+    if (!decoded) continue
+
+    candidates.push(decoded)
+
+    if (Array.isArray(decoded)) {
+      for (const item of decoded) {
+        if (item && typeof item === 'object') candidates.push(item)
+      }
+    }
+  }
+
+  const recipeBlocks = candidates.filter((item) => item && typeof item === 'object' && (item['@type'] === 'Recipe' || item['@type'] === 'HowTo' || item['recipeIngredient']))
+
+  for (const block of recipeBlocks) {
+    const ingredientList = Array.isArray(block.recipeIngredient)
+      ? block.recipeIngredient
+      : Array.isArray(block.recipeIngredients)
+        ? block.recipeIngredients
+        : null
+
+    if (Array.isArray(ingredientList)) {
+      return ingredientList
+        .filter((item) => typeof item === 'string' && item.trim())
+        .map((item) => item.trim())
+    }
+  }
+
+  return []
+}
+
 async function fetchPage(url) {
   const response = await fetch(url, {
     headers: {
@@ -69,6 +126,7 @@ export default async function handler(request, response) {
       image_url: extractImage(html),
       source_domain: normalizedUrl.hostname.replace(/^www\./, ''),
       looksLikeRecipe: looksLikeRecipe(html),
+      ingredients: extractIngredientsFromHtml(html),
     })
   } catch (error) {
     return response.status(502).json({

@@ -1,6 +1,8 @@
 // ── Spoonacular API helpers ───────────────────────────────────────────────────
 // All API calls are made client-side. API key is read from VITE_SPOONACULAR_API_KEY.
 
+import { fetchRecipeIngredients } from '@/lib/urlImport'
+
 const BASE = 'https://api.spoonacular.com'
 
 // complexSearch with addRecipeInformation=true already returns extendedIngredients.
@@ -35,6 +37,17 @@ function parseIngredients(extendedIngredients) {
     amount: ing.amount,
     unit: ing.unit,
     aisle: ing.aisle ?? 'Other',
+  }))
+}
+
+function parseUrlImportIngredients(ingredientNames) {
+  return (ingredientNames ?? []).filter(Boolean).map((name, index) => ({
+    id: `url-import-${index}`,
+    name,
+    original: name,
+    amount: null,
+    unit: null,
+    aisle: 'Other',
   }))
 }
 
@@ -90,9 +103,31 @@ export async function fetchMealBatch(dietParams = {}) {
  * Returns ingredient details for a meal. Checks the batch cache first (populated
  * when the meal was fetched in complexSearch), falling back to a per-recipe call.
  */
-export async function fetchMealDetails(mealId) {
+export async function fetchMealDetails(mealId, meal = null) {
   if (ingredientCache.has(mealId)) {
     return ingredientCache.get(mealId)
+  }
+
+  if (meal?.source_type === 'url_import') {
+    const url = meal.destination_url || meal.destinationUrl || meal.url || null
+    if (!url) {
+      throw new Error('URL import is missing a destination URL')
+    }
+
+    try {
+      const ingredients = await fetchRecipeIngredients(url)
+      const details = {
+        ingredients: parseUrlImportIngredients(ingredients),
+        servings: null,
+        difficulty: null,
+        source_type: 'url_import',
+        source_url: url,
+      }
+      ingredientCache.set(mealId, details)
+      return details
+    } catch {
+      throw new Error('URL import ingredients unavailable')
+    }
   }
 
   const params = new URLSearchParams({

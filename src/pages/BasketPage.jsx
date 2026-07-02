@@ -43,12 +43,6 @@ export default function BasketPage() {
     if (!openMealId) return
 
     const selectedMeal = basketItems.find((m) => m.meal_id === openMealId) ?? null
-    if (selectedMeal?.source_type === 'url_import') {
-      setDrawerLoading(false)
-      setDrawerDetails({ source_type: 'url_import', title: selectedMeal.title || selectedMeal.name })
-      return
-    }
-
     if (cacheRef.current[openMealId]) {
       setDrawerDetails(cacheRef.current[openMealId])
       setDrawerLoading(false)
@@ -58,13 +52,19 @@ export default function BasketPage() {
     setDrawerLoading(true)
     setDrawerDetails(null)
 
-    fetchMealDetails(openMealId)
+    fetchMealDetails(openMealId, selectedMeal)
       .then((data) => {
         cacheRef.current[openMealId] = data
         setDrawerDetails(data)
       })
       .catch(() => {
-        setDrawerDetails({ error: true })
+        const fallback = {
+          error: true,
+          source_type: selectedMeal?.source_type || 'spoonacular',
+          title: selectedMeal?.title || selectedMeal?.name,
+          destination_url: selectedMeal?.destination_url || null,
+        }
+        setDrawerDetails(fallback)
       })
       .finally(() => setDrawerLoading(false))
   }, [openMealId, basketItems])
@@ -353,7 +353,7 @@ export default function BasketPage() {
                 : drawerDetails?.error
                   ? 'Ingredients unavailable'
                   : drawerDetails?.source_type === 'url_import'
-                    ? 'Ingredients pending'
+                    ? 'Ingredients extracted'
                     : `Ingredients${drawerDetails?.ingredients?.length ? ` · ${drawerDetails.ingredients.length}` : ''}`}
             </p>
 
@@ -365,14 +365,26 @@ export default function BasketPage() {
             )}
 
             {!drawerLoading && drawerDetails?.error && (
-              <p className="text-sm text-muted-foreground">
-                Couldn't load ingredients for this meal.
-              </p>
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  We couldn&apos;t extract ingredients for this recipe. You can still open the source page and add the ingredients manually.
+                </p>
+                {drawerDetails?.destination_url && (
+                  <a
+                    href={drawerDetails.destination_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center text-sm font-medium text-primary underline underline-offset-4"
+                  >
+                    View recipe
+                  </a>
+                )}
+              </div>
             )}
 
-            {!drawerLoading && drawerDetails?.source_type === 'url_import' && (
+            {!drawerLoading && drawerDetails?.source_type === 'url_import' && !drawerDetails?.error && (
               <div className="rounded-xl border bg-secondary/30 p-4 text-sm text-muted-foreground leading-6">
-                Ingredients for this recipe will be gathered when you view the ingredient list for your basket.
+                Ingredients for this recipe were extracted from the page metadata.
               </div>
             )}
 
