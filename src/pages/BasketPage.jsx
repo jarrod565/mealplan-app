@@ -382,12 +382,6 @@ export default function BasketPage() {
               </div>
             )}
 
-            {!drawerLoading && drawerDetails?.source_type === 'url_import' && !drawerDetails?.error && (
-              <div className="rounded-xl border bg-secondary/30 p-4 text-sm text-muted-foreground leading-6">
-                Ingredients for this recipe were extracted from the page metadata.
-              </div>
-            )}
-
             {!drawerLoading && drawerDetails?.ingredients?.length > 0 && (
               <ul className="space-y-3">
                 {drawerDetails.ingredients.map((ing) => {

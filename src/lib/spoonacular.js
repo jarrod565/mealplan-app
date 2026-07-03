@@ -2,7 +2,6 @@
 // All API calls are made client-side. API key is read from VITE_SPOONACULAR_API_KEY.
 
 import { fetchRecipeIngredients } from '@/lib/urlImport'
-import { supabase } from '@/lib/supabase'
 
 const BASE = 'https://api.spoonacular.com'
 
@@ -145,19 +144,12 @@ export async function fetchMealDetails(mealId, meal = null) {
       }
       ingredientCache.set(mealId, details)
 
-      // Attempt to persist extracted ingredients back to the basket row so
-      // subsequent opens and the Ingredients page can reuse the cached data.
-      try {
-        if (meal?.subscription_id) {
-          await supabase
-            .from('basket_items')
-            .update({ extracted_ingredients: ingredients, extracted_at: new Date().toISOString() })
-            .eq('subscription_id', meal.subscription_id)
-            .eq('meal_id', mealId)
-        }
-      } catch (e) {
-        console.log('[spoonacular] supabase update failed (non-fatal)', e)
-      }
+      // TODO(future optimization): persist extracted ingredients back to the basket
+      // row so subsequent opens and the Ingredients page can reuse the cached data.
+      // Requires running migrations/007_add_extracted_ingredients.sql against the
+      // hosted Supabase project first (extracted_ingredients/extracted_at columns
+      // don't exist there yet, which was causing a 400 on this write). For now we
+      // re-fetch from Spoonacular on each open.
 
       return details
     } catch (err) {
