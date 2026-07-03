@@ -102,35 +102,53 @@ async function fetchPage(url) {
 }
 
 const SPOONACULAR_BASE = 'https://api.spoonacular.com'
-const SPOONACULAR_TIMEOUT_MS = 6000
+const SPOONACULAR_BUDGET_MS = 6000
+const SPOONACULAR_RETRY_DELAY_MS = 250
 
+async function requestSpoonacularExtract(url, apiKey, timeoutMs) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  const apiUrl = `${SPOONACULAR_BASE}/recipes/extract?url=${encodeURIComponent(url)}&apiKey=${apiKey}`
+
+  try {
+    return await fetch(apiUrl, { headers: { Accept: 'application/json' }, signal: controller.signal })
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+function parseSpoonacularIngredients(data) {
+  const extended = Array.isArray(data?.extendedIngredients) ? data.extendedIngredients : []
+
+  return extended
+    .map((ingredient) => (typeof ingredient?.original === 'string' ? ingredient.original.trim() : null))
+    .filter(Boolean)
+}
+
+// Spoonacular's gateway occasionally returns a transient 5xx/network error even
+// when the extraction itself would succeed — one quick retry clears most of these.
 async function extractIngredientsFromSpoonacular(url) {
   const apiKey = process.env.VITE_SPOONACULAR_API_KEY
   if (!apiKey) return []
 
-  const apiUrl = `${SPOONACULAR_BASE}/recipes/extract?url=${encodeURIComponent(url)}&apiKey=${apiKey}`
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), SPOONACULAR_TIMEOUT_MS)
+  const start = Date.now()
 
-  try {
-    const response = await fetch(apiUrl, {
-      headers: { Accept: 'application/json' },
-      signal: controller.signal,
-    })
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const remaining = SPOONACULAR_BUDGET_MS - (Date.now() - start)
+    if (remaining < 500) return []
 
-    if (!response.ok) return []
+    try {
+      const response = await requestSpoonacularExtract(url, apiKey, remaining)
+      if (response.ok) return parseSpoonacularIngredients(await response.json())
+      if (response.status < 500) return []
+    } catch {
+      // network error or timeout — fall through to retry if budget remains
+    }
 
-    const data = await response.json()
-    const extended = Array.isArray(data?.extendedIngredients) ? data.extendedIngredients : []
-
-    return extended
-      .map((ingredient) => (typeof ingredient?.original === 'string' ? ingredient.original.trim() : null))
-      .filter(Boolean)
-  } catch {
-    return []
-  } finally {
-    clearTimeout(timeout)
+    if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, SPOONACULAR_RETRY_DELAY_MS))
   }
+
+  return []
 }
 
 export default async function handler(request, response) {
