@@ -40,23 +40,36 @@ function parseIngredients(extendedIngredients) {
   }))
 }
 
+function asString(value) {
+  return typeof value === 'string' && value.trim() ? value : null
+}
+
 // Accepts either the structured objects returned by /api/fetch-recipe (Spoonacular
 // extract or JSON-LD, both { name, original, amount, unit, aisle }) or plain name
 // strings (legacy persisted format), normalizing both into the same shape
 // parseIngredients() produces so CB_06 aggregation can categorize, compute
 // quantities, and combine duplicates identically to regular Spoonacular meals.
+//
+// Every field is coerced with an explicit type check (not just `||`) because this
+// is a PWA behind a service worker — a tab left open across a deploy can still be
+// running an older bundle against the new API response shape, so a malformed or
+// unexpectedly-shaped item must never make it into JSX as a non-primitive.
 function parseUrlImportIngredients(items) {
   return (items ?? []).filter(Boolean).map((item, index) => {
     if (typeof item === 'string') {
       return { id: `url-import-${index}`, name: item, original: item, amount: null, unit: null, aisle: 'Other' }
     }
+    if (!item || typeof item !== 'object') {
+      return { id: `url-import-${index}`, name: `Ingredient ${index + 1}`, original: '', amount: null, unit: null, aisle: 'Other' }
+    }
+    const name = asString(item.name) || asString(item.original) || `Ingredient ${index + 1}`
     return {
-      id: item.id ?? `url-import-${index}`,
-      name: item.name || item.original || `Ingredient ${index + 1}`,
-      original: item.original || item.name || '',
+      id: typeof item.id === 'string' || typeof item.id === 'number' ? item.id : `url-import-${index}`,
+      name,
+      original: asString(item.original) || name,
       amount: typeof item.amount === 'number' ? item.amount : null,
-      unit: item.unit || null,
-      aisle: item.aisle || 'Other',
+      unit: asString(item.unit),
+      aisle: asString(item.aisle) || 'Other',
     }
   })
 }
