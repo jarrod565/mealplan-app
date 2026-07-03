@@ -65,7 +65,9 @@ function displayVolume(tsp) {
   if (tsp < 3) return { quantity: round(tsp, 2), unit: 'tsp' }
   if (tsp < 12) return { quantity: round(tsp / 3, 1), unit: 'tbsp' }
   const cups = tsp / 48
-  if (cups < 4) {
+  // Cups stay cups up through a half gallon (8 cups) — a more practical grocery
+  // unit than quarts at that range. Only switch to quarts beyond that.
+  if (cups <= 8) {
     const q = Math.round(cups * 4) / 4
     return { quantity: q, unit: q <= 1 ? 'cup' : 'cups' }
   }

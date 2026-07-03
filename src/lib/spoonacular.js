@@ -157,10 +157,14 @@ export async function fetchMealDetails(mealId, meal = null) {
     console.log('[spoonacular] url_import branch for', mealId, 'url=', url)
     try {
       console.log('[spoonacular] calling fetchRecipeIngredients for', url)
-      const ingredients = await fetchRecipeIngredients(url)
+      const { ingredients, servings } = await fetchRecipeIngredients(url)
       const details = {
         ingredients: parseUrlImportIngredients(ingredients),
-        servings: null,
+        // Real base serving count from Spoonacular, when available — computeList()
+        // divides household size by this. Passing null (not a fabricated default)
+        // when unknown lets it fall back to the same assumption as before rather
+        // than silently mis-scaling against a wrong number.
+        servings: typeof servings === 'number' ? servings : null,
         difficulty: null,
         source_type: 'url_import',
         source_url: url,

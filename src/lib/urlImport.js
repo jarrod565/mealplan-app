@@ -184,7 +184,10 @@ export async function fetchRecipeIngredients(url) {
     const ingredients = Array.isArray(data?.ingredients) ? data.ingredients : []
 
     if (ingredients.length > 0) {
-      return ingredients
+      // servings is the recipe's own base serving count that the ingredient
+      // amounts are for — CB_06 divides by this to scale by household size,
+      // exactly once. Null means "unknown," not "already per-serving."
+      return { ingredients, servings: typeof data?.servings === 'number' ? data.servings : null }
     }
 
     throw makeFetchError('page_unreadable')

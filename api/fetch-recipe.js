@@ -136,22 +136,34 @@ function parseSpoonacularIngredients(data) {
     }))
 }
 
+const EMPTY_SPOONACULAR_RESULT = { ingredients: [], servings: null }
+
 // Spoonacular's gateway occasionally returns a transient 5xx/network error even
 // when the extraction itself would succeed — one quick retry clears most of these.
+//
+// Ingredient amounts in the extract response are for the recipe's own serving
+// count (in `servings`), not pre-scaled per-serving — the caller must divide by
+// this to scale, exactly once, by household serving size.
 async function extractIngredientsFromSpoonacular(url) {
   const apiKey = process.env.VITE_SPOONACULAR_API_KEY
-  if (!apiKey) return []
+  if (!apiKey) return EMPTY_SPOONACULAR_RESULT
 
   const start = Date.now()
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const remaining = SPOONACULAR_BUDGET_MS - (Date.now() - start)
-    if (remaining < 500) return []
+    if (remaining < 500) return EMPTY_SPOONACULAR_RESULT
 
     try {
       const response = await requestSpoonacularExtract(url, apiKey, remaining)
-      if (response.ok) return parseSpoonacularIngredients(await response.json())
-      if (response.status < 500) return []
+      if (response.ok) {
+        const data = await response.json()
+        return {
+          ingredients: parseSpoonacularIngredients(data),
+          servings: typeof data?.servings === 'number' ? data.servings : null,
+        }
+      }
+      if (response.status < 500) return EMPTY_SPOONACULAR_RESULT
     } catch {
       // network error or timeout — fall through to retry if budget remains
     }
@@ -159,7 +171,7 @@ async function extractIngredientsFromSpoonacular(url) {
     if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, SPOONACULAR_RETRY_DELAY_MS))
   }
 
-  return []
+  return EMPTY_SPOONACULAR_RESULT
 }
 
 export default async function handler(request, response) {
@@ -173,14 +185,15 @@ export default async function handler(request, response) {
     const normalizedUrl = new URL(url)
 
     if (mode === 'ingredients') {
-      const spoonacularIngredients = await extractIngredientsFromSpoonacular(normalizedUrl.toString())
-      if (spoonacularIngredients.length > 0) {
-        return response.status(200).json({ ingredients: spoonacularIngredients, source: 'spoonacular' })
+      const spoonacular = await extractIngredientsFromSpoonacular(normalizedUrl.toString())
+      if (spoonacular.ingredients.length > 0) {
+        return response.status(200).json({ ingredients: spoonacular.ingredients, servings: spoonacular.servings, source: 'spoonacular' })
       }
 
       const html = await fetchPage(normalizedUrl.toString())
       // JSON-LD recipeIngredient entries are unstructured strings — no aisle/amount/unit
       // to extract, so those fields are left null and get categorized as "Other" downstream.
+      // No reliable servings count either without further recipeYield parsing.
       const ingredients = extractIngredientsFromHtml(html).map((name) => ({
         id: null,
         name,
@@ -189,7 +202,7 @@ export default async function handler(request, response) {
         unit: null,
         aisle: null,
       }))
-      return response.status(200).json({ ingredients, source: 'json-ld' })
+      return response.status(200).json({ ingredients, servings: null, source: 'json-ld' })
     }
 
     const html = await fetchPage(normalizedUrl.toString())
