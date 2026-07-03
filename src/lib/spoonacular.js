@@ -40,15 +40,25 @@ function parseIngredients(extendedIngredients) {
   }))
 }
 
-function parseUrlImportIngredients(ingredientNames) {
-  return (ingredientNames ?? []).filter(Boolean).map((name, index) => ({
-    id: `url-import-${index}`,
-    name,
-    original: name,
-    amount: null,
-    unit: null,
-    aisle: 'Other',
-  }))
+// Accepts either the structured objects returned by /api/fetch-recipe (Spoonacular
+// extract or JSON-LD, both { name, original, amount, unit, aisle }) or plain name
+// strings (legacy persisted format), normalizing both into the same shape
+// parseIngredients() produces so CB_06 aggregation can categorize, compute
+// quantities, and combine duplicates identically to regular Spoonacular meals.
+function parseUrlImportIngredients(items) {
+  return (items ?? []).filter(Boolean).map((item, index) => {
+    if (typeof item === 'string') {
+      return { id: `url-import-${index}`, name: item, original: item, amount: null, unit: null, aisle: 'Other' }
+    }
+    return {
+      id: item.id ?? `url-import-${index}`,
+      name: item.name || item.original || `Ingredient ${index + 1}`,
+      original: item.original || item.name || '',
+      amount: typeof item.amount === 'number' ? item.amount : null,
+      unit: item.unit || null,
+      aisle: item.aisle || 'Other',
+    }
+  })
 }
 
 function toMeal(result) {

@@ -117,12 +117,23 @@ async function requestSpoonacularExtract(url, apiKey, timeoutMs) {
   }
 }
 
+// Preserve Spoonacular's structured fields (aisle/amount/unit/clean name) — the
+// extract endpoint returns the same extendedIngredients shape as the recipe
+// information endpoint, which CB_06 aggregation (parseIngredients) relies on
+// for categorization, quantity math, and combining duplicates across meals.
 function parseSpoonacularIngredients(data) {
   const extended = Array.isArray(data?.extendedIngredients) ? data.extendedIngredients : []
 
   return extended
-    .map((ingredient) => (typeof ingredient?.original === 'string' ? ingredient.original.trim() : null))
-    .filter(Boolean)
+    .filter((ingredient) => typeof ingredient?.original === 'string' && ingredient.original.trim())
+    .map((ingredient) => ({
+      id: ingredient.id ?? null,
+      name: ingredient.nameClean || ingredient.name || ingredient.original.trim(),
+      original: ingredient.original.trim(),
+      amount: typeof ingredient.amount === 'number' ? ingredient.amount : null,
+      unit: typeof ingredient.unit === 'string' ? ingredient.unit : '',
+      aisle: ingredient.aisle || null,
+    }))
 }
 
 // Spoonacular's gateway occasionally returns a transient 5xx/network error even
@@ -168,7 +179,16 @@ export default async function handler(request, response) {
       }
 
       const html = await fetchPage(normalizedUrl.toString())
-      const ingredients = extractIngredientsFromHtml(html)
+      // JSON-LD recipeIngredient entries are unstructured strings — no aisle/amount/unit
+      // to extract, so those fields are left null and get categorized as "Other" downstream.
+      const ingredients = extractIngredientsFromHtml(html).map((name) => ({
+        id: null,
+        name,
+        original: name,
+        amount: null,
+        unit: null,
+        aisle: null,
+      }))
       return response.status(200).json({ ingredients, source: 'json-ld' })
     }
 
