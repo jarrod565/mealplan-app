@@ -101,6 +101,38 @@ async function fetchPage(url) {
   return response.text()
 }
 
+const SPOONACULAR_BASE = 'https://api.spoonacular.com'
+const SPOONACULAR_TIMEOUT_MS = 6000
+
+async function extractIngredientsFromSpoonacular(url) {
+  const apiKey = process.env.VITE_SPOONACULAR_API_KEY
+  if (!apiKey) return []
+
+  const apiUrl = `${SPOONACULAR_BASE}/recipes/extract?url=${encodeURIComponent(url)}&apiKey=${apiKey}`
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), SPOONACULAR_TIMEOUT_MS)
+
+  try {
+    const response = await fetch(apiUrl, {
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    })
+
+    if (!response.ok) return []
+
+    const data = await response.json()
+    const extended = Array.isArray(data?.extendedIngredients) ? data.extendedIngredients : []
+
+    return extended
+      .map((ingredient) => (typeof ingredient?.original === 'string' ? ingredient.original.trim() : null))
+      .filter(Boolean)
+  } catch {
+    return []
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 export default async function handler(request, response) {
   const { url, mode } = request.query ?? {}
 
@@ -110,12 +142,20 @@ export default async function handler(request, response) {
 
   try {
     const normalizedUrl = new URL(url)
-    const html = await fetchPage(normalizedUrl.toString())
-    const ingredients = extractIngredientsFromHtml(html)
 
     if (mode === 'ingredients') {
-      return response.status(200).json({ ingredients })
+      const spoonacularIngredients = await extractIngredientsFromSpoonacular(normalizedUrl.toString())
+      if (spoonacularIngredients.length > 0) {
+        return response.status(200).json({ ingredients: spoonacularIngredients, source: 'spoonacular' })
+      }
+
+      const html = await fetchPage(normalizedUrl.toString())
+      const ingredients = extractIngredientsFromHtml(html)
+      return response.status(200).json({ ingredients, source: 'json-ld' })
     }
+
+    const html = await fetchPage(normalizedUrl.toString())
+    const ingredients = extractIngredientsFromHtml(html)
 
     return response.status(200).json({
       title: extractTitle(html),
