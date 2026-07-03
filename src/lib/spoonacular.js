@@ -2,6 +2,7 @@
 // All API calls are made client-side. API key is read from VITE_SPOONACULAR_API_KEY.
 
 import { fetchRecipeIngredients } from '@/lib/urlImport'
+import { supabase } from '@/lib/supabase'
 
 const BASE = 'https://api.spoonacular.com'
 
@@ -104,8 +105,25 @@ export async function fetchMealBatch(dietParams = {}) {
  * when the meal was fetched in complexSearch), falling back to a per-recipe call.
  */
 export async function fetchMealDetails(mealId, meal = null) {
+  console.log('[spoonacular] fetchMealDetails', { mealId, source_type: meal?.source_type })
+
   if (ingredientCache.has(mealId)) {
+    console.log('[spoonacular] returning from ingredientCache for', mealId)
     return ingredientCache.get(mealId)
+  }
+
+  // If the meal row already contains persisted extracted ingredients, use them
+  if (meal?.extracted_ingredients && Array.isArray(meal.extracted_ingredients) && meal.extracted_ingredients.length > 0) {
+    console.log('[spoonacular] using persisted extracted_ingredients for', mealId)
+    const details = {
+      ingredients: parseUrlImportIngredients(meal.extracted_ingredients),
+      servings: meal.extracted_servings ?? null,
+      difficulty: meal.extracted_difficulty ?? null,
+      source_type: 'url_import',
+      source_url: meal.destination_url || meal.destinationUrl || meal.url || null,
+    }
+    ingredientCache.set(mealId, details)
+    return details
   }
 
   if (meal?.source_type === 'url_import') {
@@ -114,7 +132,9 @@ export async function fetchMealDetails(mealId, meal = null) {
       throw new Error('URL import is missing a destination URL')
     }
 
+    console.log('[spoonacular] url_import branch for', mealId, 'url=', url)
     try {
+      console.log('[spoonacular] calling fetchRecipeIngredients for', url)
       const ingredients = await fetchRecipeIngredients(url)
       const details = {
         ingredients: parseUrlImportIngredients(ingredients),
@@ -124,8 +144,24 @@ export async function fetchMealDetails(mealId, meal = null) {
         source_url: url,
       }
       ingredientCache.set(mealId, details)
+
+      // Attempt to persist extracted ingredients back to the basket row so
+      // subsequent opens and the Ingredients page can reuse the cached data.
+      try {
+        if (meal?.subscription_id) {
+          await supabase
+            .from('basket_items')
+            .update({ extracted_ingredients: ingredients, extracted_at: new Date().toISOString() })
+            .eq('subscription_id', meal.subscription_id)
+            .eq('meal_id', mealId)
+        }
+      } catch (e) {
+        console.log('[spoonacular] supabase update failed (non-fatal)', e)
+      }
+
       return details
-    } catch {
+    } catch (err) {
+      console.log('[spoonacular] url_import fetch failed for', mealId, err)
       throw new Error('URL import ingredients unavailable')
     }
   }

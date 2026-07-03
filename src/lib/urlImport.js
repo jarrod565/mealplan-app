@@ -167,16 +167,20 @@ export async function fetchRecipeIngredients(url) {
   const targetUrl = normalized.startsWith('http') ? normalized : `https://${normalized}`
   const apiUrl = `${RECIPE_API_ROUTE}?url=${encodeURIComponent(targetUrl)}&mode=ingredients`
 
+  console.log('[urlImport] fetchRecipeIngredients start', { targetUrl, apiUrl })
+
   try {
     const response = await fetchWithTimeout(apiUrl, {
       headers: { Accept: 'application/json' },
     })
 
     if (!response.ok) {
+      console.log('[urlImport] fetchRecipeIngredients non-ok response', response.status)
       throw makeFetchError('page_unreadable')
     }
 
     const data = await response.json()
+    console.log('[urlImport] fetchRecipeIngredients response', data)
     const ingredients = Array.isArray(data?.ingredients) ? data.ingredients : []
 
     if (ingredients.length > 0) {

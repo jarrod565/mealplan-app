@@ -59,21 +59,25 @@ export default function IngredientsPage() {
 
   const initializedRef = useRef(false)
 
-  // Fetch all meal details on mount
+  // Fetch all meal details when basket items change
   useEffect(() => {
     if (!basketItems.length) return
     const ids = basketItems.map(m => m.meal_id)
+    console.log('[Ingredients] initializing detailsMap for ids', ids)
     setDetailsMap(Object.fromEntries(ids.map(id => [id, { status: 'loading', data: null }])))
     ids.forEach(async (mealId) => {
       const meal = basketItems.find(item => item.meal_id === mealId) ?? null
+      console.log('[Ingredients] starting fetch for', mealId, 'source_type=', meal?.source_type)
       try {
         const data = await fetchMealDetails(mealId, meal)
+        console.log('[Ingredients] fetched details for', mealId, data)
         setDetailsMap(prev => ({ ...prev, [mealId]: { status: 'loaded', data } }))
-      } catch {
+      } catch (err) {
+        console.log('[Ingredients] failed to fetch details for', mealId, err)
         setDetailsMap(prev => ({ ...prev, [mealId]: { status: 'error', data: null } }))
       }
     })
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [basketItems]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initialize list once all fetches complete
   useEffect(() => {
