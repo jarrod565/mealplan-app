@@ -187,13 +187,6 @@ export default function BasketPage() {
           </div>
 
           <div className="mt-6 rounded-2xl border bg-card p-4 shadow-sm space-y-3">
-            <div>
-              <p className="text-sm font-semibold">Add a recipe by URL</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Paste a recipe link to add it to your basket.
-              </p>
-            </div>
-
             <div className="space-y-2">
               <Input
                 ref={inputRef}
@@ -251,13 +244,6 @@ export default function BasketPage() {
         <Separator className="my-6" />
 
         <div className="rounded-2xl border bg-card p-4 shadow-sm space-y-3">
-          <div>
-            <p className="text-sm font-semibold">Add a recipe by URL</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Paste a recipe link to add it to your basket.
-            </p>
-          </div>
-
           <div className="space-y-2">
             <Input
               ref={inputRef}

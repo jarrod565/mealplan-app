@@ -104,6 +104,20 @@ export function BasketProvider({ children }) {
     if (removed) setPendingReturns((prev) => [...prev, removed])
   }
 
+  async function clearBasket() {
+    if (isGuest) {
+      setBasketItems([])
+      localStorage.removeItem(GUEST_KEY)
+      return
+    }
+    if (!subscription?.id) return
+    await supabase
+      .from('basket_items')
+      .delete()
+      .eq('subscription_id', subscription.id)
+    setBasketItems([])
+  }
+
   function clearPendingReturns() {
     setPendingReturns([])
   }
@@ -120,6 +134,7 @@ export function BasketProvider({ children }) {
         isInBasket,
         addToBasket,
         removeFromBasket,
+        clearBasket,
         pendingReturns,
         clearPendingReturns,
       }}

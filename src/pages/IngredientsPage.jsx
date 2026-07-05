@@ -39,7 +39,7 @@ function computeList(detailsMap, servingOverrides, basketItems, householdServing
 }
 
 export default function IngredientsPage() {
-  const { basketItems } = useBasket()
+  const { basketItems, clearBasket } = useBasket()
   const { subscription } = useAuth()
   const { items: existingItems, generateShoppingList } = useShoppingList()
   const navigate = useNavigate()
@@ -56,6 +56,7 @@ export default function IngredientsPage() {
   const [showReplaceDialog, setShowReplaceDialog] = useState(false)
   const [customForm, setCustomForm] = useState({ name: '', quantity: '', unit: '', category: 'Other' })
   const [isGenerating, setIsGenerating] = useState(false)
+  const [emptyBasketOnGenerate, setEmptyBasketOnGenerate] = useState(false)
 
   const initializedRef = useRef(false)
 
@@ -163,6 +164,7 @@ export default function IngredientsPage() {
     setIsGenerating(true)
     try {
       await generateShoppingList(listItems)
+      if (emptyBasketOnGenerate) await clearBasket()
       navigate('/shopping-list')
     } catch {
       toast.error('Could not generate shopping list. Please try again.')
@@ -323,6 +325,15 @@ export default function IngredientsPage() {
           )}
           {!isGenerating && <ChevronRight className="w-4 h-4" />}
         </Button>
+        <label className="flex items-center gap-2 mt-3 text-xs text-muted-foreground select-none cursor-pointer w-fit">
+          <input
+            type="checkbox"
+            checked={emptyBasketOnGenerate}
+            onChange={(event) => setEmptyBasketOnGenerate(event.target.checked)}
+            className="w-3.5 h-3.5 rounded border-input accent-primary"
+          />
+          Empty the basket
+        </label>
       </div>
 
       {/* Replace existing list confirmation */}
