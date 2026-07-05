@@ -85,11 +85,18 @@ function extractIngredientsFromHtml(html) {
   return []
 }
 
+// Some recipe sites (WAFs, bot-protection plugins) block requests that
+// self-identify as a bot or come from known server/datacenter user agents.
+// A realistic desktop browser UA avoids the easy first-pass filter, though it
+// won't help if a site blocks by IP range (e.g. Vercel/AWS) rather than UA.
+const BROWSER_USER_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+
 async function fetchPage(url) {
   const response = await fetch(url, {
     headers: {
       Accept: 'text/html,application/xhtml+xml',
-      'User-Agent': 'Mozilla/5.0 (compatible; DinderBot/1.0)',
+      'User-Agent': BROWSER_USER_AGENT,
     },
     redirect: 'follow',
   })
