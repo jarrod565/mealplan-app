@@ -98,8 +98,11 @@ export default function IngredientsPage() {
     setListItems(computeList(detailsMap, servingOverrides, basketItems, householdServings))
   }, [servingOverrides]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Safe to conditionally return after all hooks
-  if (basketItems.length === 0) return <Navigate to="/basket" replace />
+  // Safe to conditionally return after all hooks. Skip this redirect while a
+  // generate is in flight — clearBasket() (when "Empty the basket" is checked)
+  // empties basketItems before the explicit navigate('/shopping-list') below
+  // runs, and without this guard that race sends the user to /basket instead.
+  if (basketItems.length === 0 && !isGenerating) return <Navigate to="/basket" replace />
 
   function adjustServing(mealId, delta) {
     setServingOverrides(prev => {
@@ -325,7 +328,7 @@ export default function IngredientsPage() {
           )}
           {!isGenerating && <ChevronRight className="w-4 h-4" />}
         </Button>
-        <label className="flex items-center gap-2 mt-3 text-xs text-muted-foreground select-none cursor-pointer w-fit">
+        <label className="flex items-center justify-center gap-2 mt-4 mx-auto text-xs text-muted-foreground select-none cursor-pointer w-fit">
           <input
             type="checkbox"
             checked={emptyBasketOnGenerate}

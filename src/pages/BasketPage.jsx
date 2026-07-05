@@ -187,7 +187,7 @@ export default function BasketPage() {
           </div>
 
           <div className="mt-6 rounded-2xl border bg-card p-4 shadow-sm space-y-3">
-            <div className="space-y-2">
+            <div className="flex items-center gap-2">
               <Input
                 ref={inputRef}
                 value={urlInput}
@@ -199,23 +199,23 @@ export default function BasketPage() {
                 placeholder="Paste a recipe URL"
                 disabled={isImporting}
                 aria-label="Paste a recipe URL"
+                className="flex-1 h-11"
               />
-              {urlError && <p className="text-sm text-destructive">{urlError}</p>}
+              <Button onClick={handleAddMeal} disabled={isImporting || !urlInput.trim()} className="gap-2 h-11 text-base shrink-0">
+                {isImporting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Adding meal…
+                  </>
+                ) : (
+                  <>
+                    Add Meal
+                    <ChevronRight className="w-4 h-4" />
+                  </>
+                )}
+              </Button>
             </div>
-
-            <Button onClick={handleAddMeal} disabled={isImporting || !urlInput.trim()} className="w-full gap-2 h-11 text-base">
-              {isImporting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Adding meal…
-                </>
-              ) : (
-                <>
-                  Add Meal
-                  <ChevronRight className="w-4 h-4" />
-                </>
-              )}
-            </Button>
+            {urlError && <p className="text-sm text-destructive">{urlError}</p>}
           </div>
         </div>
       </>
@@ -244,7 +244,7 @@ export default function BasketPage() {
         <Separator className="my-6" />
 
         <div className="rounded-2xl border bg-card p-4 shadow-sm space-y-3">
-          <div className="space-y-2">
+          <div className="flex items-center gap-2">
             <Input
               ref={inputRef}
               value={urlInput}
@@ -256,23 +256,23 @@ export default function BasketPage() {
               placeholder="Paste a recipe URL"
               disabled={isImporting}
               aria-label="Paste a recipe URL"
+              className="flex-1 h-11"
             />
-            {urlError && <p className="text-sm text-destructive">{urlError}</p>}
+            <Button onClick={handleAddMeal} disabled={isImporting || !urlInput.trim()} className="gap-2 h-11 text-base shrink-0">
+              {isImporting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Adding meal…
+                </>
+              ) : (
+                <>
+                  Add Meal
+                  <ChevronRight className="w-4 h-4" />
+                </>
+              )}
+            </Button>
           </div>
-
-          <Button onClick={handleAddMeal} disabled={isImporting || !urlInput.trim()} className="w-full gap-2 h-11 text-base">
-            {isImporting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Adding meal…
-              </>
-            ) : (
-              <>
-                Add Meal
-                <ChevronRight className="w-4 h-4" />
-              </>
-            )}
-          </Button>
+          {urlError && <p className="text-sm text-destructive">{urlError}</p>}
         </div>
 
         <Button asChild className="w-full gap-2 h-11 text-base mt-6">
