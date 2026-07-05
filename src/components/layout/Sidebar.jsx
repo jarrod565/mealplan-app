@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { CalendarDays, ShoppingBasket, ShoppingCart, Heart, EyeOff } from 'lucide-react'
+import { CalendarDays, ShoppingBasket, ShoppingCart, History, Heart } from 'lucide-react'
 import { useBasket } from '@/contexts/BasketContext'
 import { cn } from '@/lib/utils'
 
@@ -10,8 +10,8 @@ export default function Sidebar() {
     { to: '/plan',          label: 'Plan',      Icon: CalendarDays,   badge: null },
     { to: '/basket',        label: 'Basket',    Icon: ShoppingBasket, badge: basketCount || null },
     { to: '/shopping-list', label: 'List',      Icon: ShoppingCart,   badge: null },
+    { to: '/history',       label: 'History',   Icon: History,        badge: null },
     { to: '/favorites',     label: 'Favorites', Icon: Heart,          badge: null },
-    { to: '/hidden',        label: 'Hidden',    Icon: EyeOff,         badge: null },
   ]
 
   return (

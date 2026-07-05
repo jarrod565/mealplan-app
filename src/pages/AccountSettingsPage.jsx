@@ -21,7 +21,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { Crown, LogIn, LogOut, Monitor, Moon, Sun, Users, Webhook, Zap } from 'lucide-react'
+import { ChevronRight, Crown, EyeOff, LogIn, LogOut, Monitor, Moon, Sun, Users, Webhook, Zap } from 'lucide-react'
 import { stripePromise } from '@/lib/stripe'
 import { supabase } from '@/lib/supabase'
 import UserAvatar from '@/components/layout/UserAvatar'
@@ -328,6 +328,20 @@ export default function AccountSettingsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* CB_11: Hidden's nav entry moved here — the screen itself is unchanged */}
+      <Separator />
+
+      <Link
+        to="/hidden"
+        className="flex items-center justify-between px-1 py-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <span className="flex items-center gap-2">
+          <EyeOff className="w-4 h-4" />
+          Hidden Meals
+        </span>
+        <ChevronRight className="w-4 h-4" />
+      </Link>
     </div>
     </>
   )

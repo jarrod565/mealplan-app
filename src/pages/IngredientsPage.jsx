@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useBasket } from '@/contexts/BasketContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { useShoppingList } from '@/contexts/ShoppingListContext'
+import { useHistory } from '@/contexts/HistoryContext'
 import { fetchMealDetails } from '@/lib/spoonacular'
 import { aggregateIngredients, aisleToCategory, CATEGORIES } from '@/lib/units'
 import { Button } from '@/components/ui/button'
@@ -42,6 +43,7 @@ export default function IngredientsPage() {
   const { basketItems, clearBasket } = useBasket()
   const { subscription } = useAuth()
   const { items: existingItems, generateShoppingList } = useShoppingList()
+  const { writeHistory } = useHistory()
   const navigate = useNavigate()
 
   const householdServings = subscription?.default_serving_size ?? 2
@@ -167,6 +169,9 @@ export default function IngredientsPage() {
     setIsGenerating(true)
     try {
       await generateShoppingList(listItems)
+      // Fire-and-forget: History must never delay navigation or surface its
+      // own errors — the shopping list is what the user is waiting on.
+      writeHistory(basketItems)
       if (emptyBasketOnGenerate) await clearBasket()
       navigate('/shopping-list')
     } catch {

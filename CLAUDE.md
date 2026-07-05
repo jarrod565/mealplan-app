@@ -62,6 +62,7 @@ Built as both a personal utility and a portfolio case study demonstrating end-to
 - ✅ Responsive navigation — bottom nav (mobile) / sidebar (desktop)
 - ✅ Dinder logo (SVG wordmark with icon)
 - ✅ Deployed to Vercel with Google OAuth working on desktop and iPhone
+- ✅ CB_11 — Meal History: chronological table (paginated, most recent first), auto-write on Shopping List generation, dedup (meal_id for Spoonacular, destination_url for URL imports), Make This Again (basket re-add for both source types), inline favorite prompt, Hidden moved to Settings and History added to nav — **requires `supabase/migrations/008_meal_history.sql` to be run against the hosted project before the History write/read paths will work**
 
 ## What's In Progress (v2)
 
@@ -78,29 +79,21 @@ Built as both a personal utility and a portfolio case study demonstrating end-to
   - Duplicate URL detection
   - Full error message matrix
   - Ingredient extraction deferred to CB_06 pipeline
-- 🔄 CB_11 — Meal History
-  - Chronological meal table (most recent first, paginated)
-  - Auto-written at Shopping List generation time
-  - Deduplication — one record per meal, updated on re-generation
-  - Make This Again action (basket re-add for Spoonacular and URL imports)
-  - Inline favorite prompt for non-favorited meals
-  - Navigation restructure — Hidden moves to Settings, History added between List and Favorites
 
 ---
 
 ## Navigation Structure
 
-**Current (v1):**
-- Bottom nav (mobile) / sidebar (desktop): Plan, Basket, List, Favorites, Hidden
+**Current (post-CB_11):**
+- Bottom nav (mobile) / sidebar (desktop): Plan, Basket, List, History, Favorites
 - Settings accessible via user avatar in top right header
+- "Hidden" removed from nav — accessible via Settings → Hidden Meals at the bottom of the Settings screen (screen itself unchanged, only its entry point moved)
 
-**Upcoming (v2 — CB_09 + CB_11):**
+**Upcoming (v2 — CB_09):**
 - Bottom nav (mobile) / sidebar (desktop): Explore, For You (conditional), List, History, Favorites
 - Basket moves to top header icon (no label) next to user avatar
 - "Plan" renamed to "Explore"
 - "For You" added — only visible when at least one Pinterest board is connected and selected
-- "History" added between List and Favorites
-- "Hidden" removed from nav — accessible via Settings → Hidden Meals at the bottom of the Settings screen
 - Nav labels hidden on viewports narrower than 360px (mobile only)
 - Settings remains accessible via user avatar only
 
@@ -180,7 +173,7 @@ CB_09 introduces a reusable pattern for external integrations. Key principles:
 - https://jarrodmurray.vercel.app/**
 - https://mealplan-app.vercel.app/**
 
-**Migrations:** All 4 migration files have been run against the hosted Supabase project.
+**Migrations:** 001–006 confirmed run against the hosted project. 007 (`extracted_ingredients`/`extracted_at` on `basket_items`) was written but **not yet run** — confirmed missing via a live column-existence check, which is why URL-imported ingredients aren't cached back to the basket row. 008 (`meal_history`, CB_11) is also **not yet run** — needs to be applied via the Supabase SQL editor before History reads/writes will work.
 **CB_09 migration:** Not yet written — required for Connected Sources table.
 
 ---
@@ -201,7 +194,7 @@ Full product specifications live in `/docs/capability-briefs/`. These are the au
 | CB_08_Export_Share.md | Clipboard copy and share sheet | ✅ Built |
 | CB_09_Connected_Sources.md | Pinterest OAuth, For You deck, ingredient extraction, nav restructure | 🔄 In Progress |
 | CB_10_URL_Recipe_Import.md | Paste-a-URL import, Open Graph fetch, recipe detection, basket card | 🔄 In Progress |
-| CB_11_Meal_History.md | Chronological history, Make This Again, inline favorite prompt, nav restructure | 🔄 In Progress |
+| CB_11_Meal_History.md | Chronological history, Make This Again, inline favorite prompt, nav restructure | ✅ Built (migration pending) |
 
 ---
 

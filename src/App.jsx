@@ -5,6 +5,7 @@ import { BasketProvider } from '@/contexts/BasketContext'
 import { FavoritesProvider } from '@/contexts/FavoritesContext'
 import { HiddenProvider } from '@/contexts/HiddenContext'
 import { ShoppingListProvider } from '@/contexts/ShoppingListContext'
+import { HistoryProvider } from '@/contexts/HistoryContext'
 import { ThemeSync } from '@/components/ThemeSync'
 import { router } from './router'
 
@@ -17,8 +18,10 @@ export default function App() {
         <FavoritesProvider>
           <HiddenProvider>
             <ShoppingListProvider>
-              <RouterProvider router={router} />
-              <Toaster position="top-center" richColors />
+              <HistoryProvider>
+                <RouterProvider router={router} />
+                <Toaster position="top-center" richColors />
+              </HistoryProvider>
             </ShoppingListProvider>
           </HiddenProvider>
         </FavoritesProvider>

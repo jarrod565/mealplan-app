@@ -126,12 +126,22 @@ export function BasketProvider({ children }) {
     return basketItems.some((b) => b.meal_id === mealId)
   }
 
+  // URL-imported basket items get a synthetic meal_id regenerated on every add
+  // (see BasketPage.jsx addImportedMeal), so "already in basket" for that
+  // source type must match on destination_url instead — same identity rule
+  // History uses for dedup.
+  function isUrlInBasket(url) {
+    if (!url) return false
+    return basketItems.some((b) => b.destination_url === url)
+  }
+
   return (
     <BasketContext.Provider
       value={{
         basketItems,
         basketCount: basketItems.length,
         isInBasket,
+        isUrlInBasket,
         addToBasket,
         removeFromBasket,
         clearBasket,

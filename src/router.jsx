@@ -9,6 +9,7 @@ import AccountSettingsPage from '@/pages/AccountSettingsPage'
 import DietaryPreferencesPage from '@/pages/DietaryPreferencesPage'
 import IngredientsPage from '@/pages/IngredientsPage'
 import ShoppingListPage from '@/pages/ShoppingListPage'
+import HistoryPage from '@/pages/HistoryPage'
 import PrivacyPage from '@/pages/PrivacyPage'
 
 export const router = createBrowserRouter([
@@ -33,6 +34,7 @@ export const router = createBrowserRouter([
       { path: 'settings/dietary', element: <DietaryPreferencesPage /> },
       { path: 'ingredients', element: <IngredientsPage /> },
       { path: 'shopping-list', element: <ShoppingListPage /> },
+      { path: 'history', element: <HistoryPage /> },
     ],
   },
   {
