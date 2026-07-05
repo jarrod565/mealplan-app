@@ -143,7 +143,7 @@ function parseSpoonacularIngredients(data) {
     }))
 }
 
-const EMPTY_SPOONACULAR_RESULT = { ingredients: [], servings: null }
+const EMPTY_SPOONACULAR_RESULT = { ingredients: [], servings: null, title: null, image_url: null }
 
 // Spoonacular's gateway occasionally returns a transient 5xx/network error even
 // when the extraction itself would succeed — one quick retry clears most of these.
@@ -151,6 +151,11 @@ const EMPTY_SPOONACULAR_RESULT = { ingredients: [], servings: null }
 // Ingredient amounts in the extract response are for the recipe's own serving
 // count (in `servings`), not pre-scaled per-serving — the caller must divide by
 // this to scale, exactly once, by household serving size.
+//
+// Also carries title/image_url: Spoonacular's own infrastructure reaches many
+// pages our direct fetchPage can't (WAF/IP-reputation/TLS-fingerprint blocking
+// that no User-Agent header can get past), so the import step falls back to
+// this same call for metadata rather than a second, separate request.
 async function extractIngredientsFromSpoonacular(url) {
   const apiKey = process.env.VITE_SPOONACULAR_API_KEY
   if (!apiKey) return EMPTY_SPOONACULAR_RESULT
@@ -168,6 +173,8 @@ async function extractIngredientsFromSpoonacular(url) {
         return {
           ingredients: parseSpoonacularIngredients(data),
           servings: typeof data?.servings === 'number' ? data.servings : null,
+          title: typeof data?.title === 'string' && data.title.trim() ? data.title.trim() : null,
+          image_url: typeof data?.image === 'string' && data.image.trim() ? data.image.trim() : null,
         }
       }
       if (response.status < 500) return EMPTY_SPOONACULAR_RESULT
@@ -212,16 +219,33 @@ export default async function handler(request, response) {
       return response.status(200).json({ ingredients, servings: null, source: 'json-ld' })
     }
 
-    const html = await fetchPage(normalizedUrl.toString())
-    const ingredients = extractIngredientsFromHtml(html)
+    try {
+      const html = await fetchPage(normalizedUrl.toString())
+      const ingredients = extractIngredientsFromHtml(html)
 
-    return response.status(200).json({
-      title: extractTitle(html),
-      image_url: extractImage(html),
-      source_domain: normalizedUrl.hostname.replace(/^www\./, ''),
-      looksLikeRecipe: looksLikeRecipe(html),
-      ingredients,
-    })
+      return response.status(200).json({
+        title: extractTitle(html),
+        image_url: extractImage(html),
+        source_domain: normalizedUrl.hostname.replace(/^www\./, ''),
+        looksLikeRecipe: looksLikeRecipe(html),
+        ingredients,
+      })
+    } catch (pageError) {
+      // Some sites block our direct fetch outright (WAF/IP-reputation/TLS
+      // fingerprinting) regardless of User-Agent. Spoonacular's extract
+      // endpoint reaches many of these from its own infrastructure — fall
+      // back to it for title/image before giving up entirely.
+      const spoonacular = await extractIngredientsFromSpoonacular(normalizedUrl.toString())
+      if (!spoonacular.title) throw pageError
+
+      return response.status(200).json({
+        title: spoonacular.title,
+        image_url: spoonacular.image_url,
+        source_domain: normalizedUrl.hostname.replace(/^www\./, ''),
+        looksLikeRecipe: true,
+        ingredients: spoonacular.ingredients,
+      })
+    }
   } catch (error) {
     return response.status(502).json({
       error: 'Could not fetch recipe metadata',
