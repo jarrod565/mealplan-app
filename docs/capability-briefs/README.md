@@ -35,6 +35,8 @@ Capability Briefs are written for both human collaborators and AI-assisted devel
 | CB_07 | Shopping List | Persistent checklist, check-off state, clear flow |
 | CB_08 | Export / Share | Clipboard copy, native share sheet, plain text formatting |
 | CB_09 | Connected Sources (Pinterest — v1) | Reusable integration framework, Pinterest OAuth, For You deck, Schema.org ingredient extraction |
+| CB_10 | URL Recipe Import | Paste-a-URL recipe import, Open Graph metadata fetch, recipe detection, basket card creation |
+| CB_11 | Meal History | Chronological meal history, Make This Again action, inline favorite prompt, nav restructure |
 
 ---
 
@@ -49,15 +51,18 @@ CB_03 Meal Discovery (Swipe Experience)
        ↓         ↓            ↓            ↓
 CB_04         CB_05         CB_06         CB_09 Connected Sources
 Favorites     Hidden        Ingredient         (Pinterest — v1)
-                            Aggregation
-                                 ↓
+                            Aggregation              ↓
+                                 ↓            CB_10 URL Recipe Import
                             CB_07 Shopping List
                                  ↓
                             CB_08 Export / Share
+                            CB_11 Meal History
 ```
 
 All capabilities depend on CB_01 for session, subscription tier, and account-level settings.
 CB_09 depends on CB_03 (shared Basket, card pattern), CB_04 (Favorites), and CB_06 (ingredient aggregation).
+CB_10 depends on CB_03 (Basket screen and data model), CB_06 (ingredient extraction), and CB_09 (shared extraction pipeline and fallback behavior).
+CB_11 depends on CB_03 (basket state), CB_04 (Favorites), CB_07 (triggered at list generation), and CB_10 (URL import re-addition).
 
 ---
 

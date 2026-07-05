@@ -78,6 +78,13 @@ Built as both a personal utility and a portfolio case study demonstrating end-to
   - Duplicate URL detection
   - Full error message matrix
   - Ingredient extraction deferred to CB_06 pipeline
+- 🔄 CB_11 — Meal History
+  - Chronological meal table (most recent first, paginated)
+  - Auto-written at Shopping List generation time
+  - Deduplication — one record per meal, updated on re-generation
+  - Make This Again action (basket re-add for Spoonacular and URL imports)
+  - Inline favorite prompt for non-favorited meals
+  - Navigation restructure — Hidden moves to Settings, History added between List and Favorites
 
 ---
 
@@ -87,11 +94,13 @@ Built as both a personal utility and a portfolio case study demonstrating end-to
 - Bottom nav (mobile) / sidebar (desktop): Plan, Basket, List, Favorites, Hidden
 - Settings accessible via user avatar in top right header
 
-**Upcoming (v2 — CB_09):**
-- Bottom nav (mobile) / sidebar (desktop): Explore, For You (conditional), List, Favorites, Hidden
+**Upcoming (v2 — CB_09 + CB_11):**
+- Bottom nav (mobile) / sidebar (desktop): Explore, For You (conditional), List, History, Favorites
 - Basket moves to top header icon (no label) next to user avatar
 - "Plan" renamed to "Explore"
 - "For You" added — only visible when at least one Pinterest board is connected and selected
+- "History" added between List and Favorites
+- "Hidden" removed from nav — accessible via Settings → Hidden Meals at the bottom of the Settings screen
 - Nav labels hidden on viewports narrower than 360px (mobile only)
 - Settings remains accessible via user avatar only
 
@@ -192,6 +201,7 @@ Full product specifications live in `/docs/capability-briefs/`. These are the au
 | CB_08_Export_Share.md | Clipboard copy and share sheet | ✅ Built |
 | CB_09_Connected_Sources.md | Pinterest OAuth, For You deck, ingredient extraction, nav restructure | 🔄 In Progress |
 | CB_10_URL_Recipe_Import.md | Paste-a-URL import, Open Graph fetch, recipe detection, basket card | 🔄 In Progress |
+| CB_11_Meal_History.md | Chronological history, Make This Again, inline favorite prompt, nav restructure | 🔄 In Progress |
 
 ---
 
