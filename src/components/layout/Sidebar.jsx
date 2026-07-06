@@ -21,7 +21,7 @@ export default function Sidebar() {
         <img
           src="/dinder-logo.svg"
           alt="Dinder"
-          className="w-full h-auto dark:[filter:brightness(0)_invert(1)]"
+          className="w-3/4 h-auto mx-auto block dark:[filter:brightness(0)_invert(1)]"
         />
       </div>
 
