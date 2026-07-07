@@ -13,17 +13,6 @@ const SCOPES = 'data.records:read schema.bases:read'
 const REDIRECT_PATH = '/settings/connections/airtable/callback'
 const PKCE_STORAGE_KEY = 'airtable_oauth_pkce'
 
-// TEMPORARY DEBUG — remove once VITE_AIRTABLE_CLIENT_ID build-time
-// availability is confirmed. Logs only a short prefix, never the full ID.
-console.log(
-  '[airtable debug] VITE_AIRTABLE_CLIENT_ID present:',
-  !!import.meta.env.VITE_AIRTABLE_CLIENT_ID,
-  'prefix:',
-  import.meta.env.VITE_AIRTABLE_CLIENT_ID
-    ? import.meta.env.VITE_AIRTABLE_CLIENT_ID.slice(0, 4)
-    : 'MISSING'
-)
-
 function base64UrlEncode(bytes) {
   let str = btoa(String.fromCharCode(...bytes))
   return str.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
