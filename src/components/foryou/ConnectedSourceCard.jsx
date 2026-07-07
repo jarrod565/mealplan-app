@@ -83,13 +83,14 @@ const ConnectedSourceCard = forwardRef(function ConnectedSourceCard(
         isTop ? 'cursor-grab active:cursor-grabbing' : ''
       )}
     >
-      {/* Natural aspect ratio image, aligned to top */}
-      <div className="relative w-full aspect-[4/3] bg-secondary shrink-0 overflow-hidden">
+      {/* Photo — flex-1 so it dominates the card like SwipeCard's, instead of a
+          fixed aspect ratio that leaves it thumbnail-sized in a taller card. */}
+      <div className="relative flex-1 bg-secondary overflow-hidden">
         {card.image_url ? (
           <img
             src={card.image_url}
             alt={card.title}
-            className="w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover"
             draggable={false}
           />
         ) : (
@@ -126,9 +127,11 @@ const ConnectedSourceCard = forwardRef(function ConnectedSourceCard(
         )}
       </div>
 
-      {/* Info panel — title, source footer, Yes/No only (no Never, no prep/difficulty, no ingredients row) */}
-      <div className="flex-1 flex flex-col bg-card min-h-0">
-        <div className="px-4 pt-3.5 pb-2 flex-1 min-h-0">
+      {/* Info panel — title, source footer, Yes/No only (no Never, no prep/difficulty, no ingredients row).
+          shrink-0 (not flex-1): this panel is content-sized so the photo above absorbs all
+          leftover space instead of leaving dead space below the text. */}
+      <div className="shrink-0 flex flex-col bg-card">
+        <div className="px-4 pt-3.5 pb-2">
           <h2 className="font-bold text-base leading-snug text-foreground line-clamp-2">
             {card.title || 'Untitled recipe'}
           </h2>
