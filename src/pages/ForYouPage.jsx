@@ -79,7 +79,11 @@ export default function ForYouPage() {
               key={card.card_id}
               style={{
                 position: 'absolute',
-                top: 0, left: 0, right: 0, bottom: 0,
+                // No `bottom: 0` — ConnectedSourceCard is content-sized (image +
+                // title + source label), not stretched to fill this container.
+                // Setting all four insets would force it to full height and
+                // reintroduce the dead space below the title.
+                top: 0, left: 0, right: 0,
                 zIndex: 10 - i,
                 transform: i === 1 ? 'scale(0.95) translateY(18px)' : undefined,
                 transition: i === 0 ? 'none' : 'transform 0.3s ease-out',

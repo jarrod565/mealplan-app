@@ -12,8 +12,11 @@ import { cn } from '@/lib/utils'
 //
 // Visual spec (CLAUDE.md Design Direction, "Swipe card For You / Pinterest"):
 // natural aspect ratio image aligned to top, title, source footer — no
-// difficulty/prep time/Never button/ingredients drawer. Swipe mechanics
-// mirror SwipeCard.jsx (Explore) for a consistent feel across both decks.
+// difficulty/prep time/Never button/ingredients drawer. Unlike SwipeCard
+// (Explore), this card is content-sized, not stretched to a fixed outer
+// height — the image dominates and the info block ends the card immediately
+// after the source footer, no forced minimum height. Yes/No are overlaid on
+// the photo (not a separate row below the title) to match that.
 
 const SWIPE_THRESHOLD = 80
 const SNAP_CONFIG = { tension: 350, friction: 40 }
@@ -79,17 +82,17 @@ const ConnectedSourceCard = forwardRef(function ConnectedSourceCard(
       {...(isTop ? bind() : {})}
       style={isTop ? { x, y, rotate, touchAction: 'none' } : undefined}
       className={cn(
-        'relative w-full h-full flex flex-col rounded-2xl overflow-hidden shadow-xl bg-card select-none',
+        'relative w-full flex flex-col rounded-2xl overflow-hidden shadow-xl bg-card select-none',
         isTop ? 'cursor-grab active:cursor-grabbing' : ''
       )}
     >
-      {/* Natural aspect ratio image, aligned to top */}
-      <div className="relative w-full aspect-[4/3] bg-secondary shrink-0 overflow-hidden">
+      {/* Photo — dominant, tall aspect ratio so it reads as a food photo, not a thumbnail */}
+      <div className="relative w-full aspect-[3/4] bg-secondary shrink-0 overflow-hidden">
         {card.image_url ? (
           <img
             src={card.image_url}
             alt={card.title}
-            className="w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover"
             draggable={false}
           />
         ) : (
@@ -97,6 +100,9 @@ const ConnectedSourceCard = forwardRef(function ConnectedSourceCard(
             <span className="text-6xl">🍽️</span>
           </div>
         )}
+
+        {/* Bottom gradient — keeps the overlaid buttons legible over any photo */}
+        <div className="absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
 
         <animated.div
           style={{ opacity: yesOpacity }}
@@ -124,40 +130,33 @@ const ConnectedSourceCard = forwardRef(function ConnectedSourceCard(
             <Heart className={cn('w-5 h-5', isFavorited && 'fill-current')} />
           </button>
         )}
-      </div>
 
-      {/* Info panel — title, source footer, Yes/No only (no Never, no prep/difficulty, no ingredients row) */}
-      <div className="flex-1 flex flex-col bg-card min-h-0">
-        <div className="px-4 pt-3.5 pb-2 flex-1 min-h-0">
-          <h2 className="font-bold text-base leading-snug text-foreground line-clamp-2">
-            {card.title || 'Untitled recipe'}
-          </h2>
-          {flags.sourceFooter && card.source_footer && (
-            <p className="text-xs text-muted-foreground mt-1.5 truncate">{card.source_footer}</p>
-          )}
-        </div>
-
+        {/* Yes/No overlaid on the photo — same placement as SwipeCard (Explore) */}
         {isTop && (flags.yes || flags.no) && (
-          <div className="flex items-center justify-center gap-6 px-4 py-3.5 border-t border-border/40 shrink-0">
+          <div className="absolute bottom-6 inset-x-0 z-10 flex items-center justify-center gap-8">
             {flags.no && (
-              <button
-                onClick={handleNoClick}
-                aria-label="Skip"
-                className="w-12 h-12 rounded-full flex items-center justify-center border-2 border-border text-muted-foreground hover:bg-secondary active:scale-95 transition-all"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <OverlayButton onClick={handleNoClick} label="Skip" icon={<X className="w-[1.1rem] h-[1.1rem]" />} />
             )}
             {flags.yes && (
-              <button
+              <OverlayButton
                 onClick={handleYesClick}
-                aria-label="Yes"
-                className="w-[4.5rem] h-[4.5rem] rounded-full flex items-center justify-center bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-400 active:scale-95 transition-all"
-              >
-                <Plus className="w-7 h-7" strokeWidth={2.5} />
-              </button>
+                label="Yes!"
+                icon={<Plus className="w-6 h-6" strokeWidth={2.5} />}
+                large
+                yes
+              />
             )}
           </div>
+        )}
+      </div>
+
+      {/* Info — title + source footer only, sized to content. Card ends here, no dead space. */}
+      <div className="shrink-0 bg-card px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
+        <h2 className="font-bold text-base leading-snug text-foreground line-clamp-2">
+          {card.title || 'Untitled recipe'}
+        </h2>
+        {flags.sourceFooter && card.source_footer && (
+          <p className="text-xs text-muted-foreground mt-1.5 truncate">{card.source_footer}</p>
         )}
       </div>
     </animated.div>
@@ -165,3 +164,22 @@ const ConnectedSourceCard = forwardRef(function ConnectedSourceCard(
 })
 
 export default ConnectedSourceCard
+
+// Buttons overlaid on the photo — mirrors SwipeCard.jsx's OverlayButton exactly
+function OverlayButton({ onClick, label, icon, large = false, yes = false }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      className={cn(
+        'rounded-full flex items-center justify-center active:scale-95 transition-all',
+        large ? 'w-[4.5rem] h-[4.5rem]' : 'w-12 h-12',
+        yes
+          ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-400'
+          : 'border-2 border-white/30 bg-white/20 backdrop-blur-sm text-white shadow-lg hover:bg-white/30'
+      )}
+    >
+      {icon}
+    </button>
+  )
+}
