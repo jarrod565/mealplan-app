@@ -10,13 +10,13 @@ import { cn } from '@/lib/utils'
 // (Pinterest) only needs an adapter producing the same card shape to work
 // with this component unchanged.
 //
-// Visual spec (CLAUDE.md Design Direction, "Swipe card For You / Pinterest"):
-// natural aspect ratio image aligned to top, title, source footer — no
-// difficulty/prep time/Never button/ingredients drawer. Unlike SwipeCard
-// (Explore), this card is content-sized, not stretched to a fixed outer
-// height — the image dominates and the info block ends the card immediately
-// after the source footer, no forced minimum height. Yes/No are overlaid on
-// the photo (not a separate row below the title) to match that.
+// Structurally a twin of SwipeCard.jsx (Explore) — same shell, same photo/
+// footer proportions, same button placement. It differs only in content:
+// no Never button, footer shows source_footer instead of a tappable
+// ingredients row (ingredients_drawer is always false for Connected
+// Sources). Deliberately not sharing a literal component with SwipeCard —
+// mirroring the CSS/structure directly keeps Explore untouched while still
+// being pixel-equivalent.
 
 const SWIPE_THRESHOLD = 80
 const SNAP_CONFIG = { tension: 350, friction: 40 }
@@ -82,12 +82,12 @@ const ConnectedSourceCard = forwardRef(function ConnectedSourceCard(
       {...(isTop ? bind() : {})}
       style={isTop ? { x, y, rotate, touchAction: 'none' } : undefined}
       className={cn(
-        'relative w-full flex flex-col rounded-2xl overflow-hidden shadow-xl bg-card select-none',
+        'relative w-full h-full flex flex-col rounded-2xl overflow-hidden shadow-xl bg-card select-none',
         isTop ? 'cursor-grab active:cursor-grabbing' : ''
       )}
     >
-      {/* Photo — dominant, tall aspect ratio so it reads as a food photo, not a thumbnail */}
-      <div className="relative w-full aspect-[3/4] bg-secondary shrink-0 overflow-hidden">
+      {/* ── PHOTO SECTION ── fills all space above the info panel, exactly like SwipeCard */}
+      <div className="relative flex-1 overflow-hidden">
         {card.image_url ? (
           <img
             src={card.image_url}
@@ -96,20 +96,26 @@ const ConnectedSourceCard = forwardRef(function ConnectedSourceCard(
             draggable={false}
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-6xl">🍽️</span>
+          <div className="absolute inset-0 bg-secondary flex items-center justify-center">
+            <span className="text-7xl">🍽️</span>
           </div>
         )}
 
-        {/* Bottom gradient — keeps the overlaid buttons legible over any photo */}
-        <div className="absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+        {/* Bottom gradient — darkens photo so buttons are legible */}
+        <div className="absolute bottom-0 left-0 right-0 h-52 bg-gradient-to-t from-black/70 via-black/30 to-transparent pointer-events-none" />
 
+        {/* Top gradient — makes the heart legible */}
+        <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-black/20 to-transparent pointer-events-none" />
+
+        {/* YES stamp */}
         <animated.div
           style={{ opacity: yesOpacity }}
           className="absolute top-6 left-5 border-4 border-emerald-400 rounded-xl px-3 py-1 rotate-[-15deg] pointer-events-none"
         >
           <span className="text-emerald-400 font-black text-2xl tracking-wide">YES</span>
         </animated.div>
+
+        {/* NOPE stamp */}
         <animated.div
           style={{ opacity: noOpacity }}
           className="absolute top-6 right-5 border-4 border-red-400 rounded-xl px-3 py-1 rotate-[15deg] pointer-events-none"
@@ -117,6 +123,7 @@ const ConnectedSourceCard = forwardRef(function ConnectedSourceCard(
           <span className="text-red-400 font-black text-2xl tracking-wide">NOPE</span>
         </animated.div>
 
+        {/* Heart — top right */}
         {flags.favorites && (
           <button
             onClick={handleHeartClick}
@@ -131,7 +138,7 @@ const ConnectedSourceCard = forwardRef(function ConnectedSourceCard(
           </button>
         )}
 
-        {/* Yes/No overlaid on the photo — same placement as SwipeCard (Explore) */}
+        {/* Action buttons — overlaid on photo near the bottom, top card only. No Never. */}
         {isTop && (flags.yes || flags.no) && (
           <div className="absolute bottom-6 inset-x-0 z-10 flex items-center justify-center gap-8">
             {flags.no && (
@@ -150,13 +157,23 @@ const ConnectedSourceCard = forwardRef(function ConnectedSourceCard(
         )}
       </div>
 
-      {/* Info — title + source footer only, sized to content. Card ends here, no dead space. */}
-      <div className="shrink-0 bg-card px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
-        <h2 className="font-bold text-base leading-snug text-foreground line-clamp-2">
-          {card.title || 'Untitled recipe'}
-        </h2>
+      {/* ── WHITE INFO PANEL ── sits at the bottom of the card */}
+      <div
+        className="shrink-0 bg-card border-t border-border/30"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Meal name */}
+        <div className="px-4 pt-3.5 pb-2">
+          <h2 className="font-bold text-base leading-snug text-foreground line-clamp-1">
+            {card.title || 'Untitled recipe'}
+          </h2>
+        </div>
+
+        {/* Source footer — static, same rhythm as SwipeCard's ingredients row, not tappable */}
         {flags.sourceFooter && card.source_footer && (
-          <p className="text-xs text-muted-foreground mt-1.5 truncate">{card.source_footer}</p>
+          <div className="w-full flex items-center px-4 py-2.5 pb-3.5 border-t border-border/40">
+            <span className="flex-1 text-sm text-muted-foreground truncate">{card.source_footer}</span>
+          </div>
         )}
       </div>
     </animated.div>
