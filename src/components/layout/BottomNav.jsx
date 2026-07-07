@@ -1,13 +1,20 @@
 import { NavLink } from 'react-router-dom'
-import { CalendarDays, ShoppingBasket, ShoppingCart, History, Heart } from 'lucide-react'
+import { CalendarDays, ShoppingBasket, ShoppingCart, History, Heart, Sparkles } from 'lucide-react'
 import { useBasket } from '@/contexts/BasketContext'
+import { useConnectedSources } from '@/contexts/ConnectedSourcesContext'
 import { cn } from '@/lib/utils'
 
 export default function BottomNav() {
   const { basketCount } = useBasket()
+  const { connections } = useConnectedSources()
 
   const NAV_ITEMS = [
     { to: '/plan',          label: 'Plan',      Icon: CalendarDays,   badge: null },
+    // CB_12: nav item appears once any source is connected — generic across
+    // Airtable today and future sources (e.g. Pinterest), not source-specific.
+    ...(connections.length > 0
+      ? [{ to: '/for-you', label: 'For You', Icon: Sparkles, badge: null }]
+      : []),
     { to: '/basket',        label: 'Basket',    Icon: ShoppingBasket, badge: basketCount || null },
     { to: '/shopping-list', label: 'List',      Icon: ShoppingCart,   badge: null },
     { to: '/history',       label: 'History',   Icon: History,        badge: null },

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTheme } from 'next-themes'
 import { useAuth } from '@/contexts/AuthContext'
+import { useConnectedSources } from '@/contexts/ConnectedSourcesContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -21,7 +22,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { ChevronRight, Crown, EyeOff, LogIn, LogOut, Monitor, Moon, Sun, Users, Webhook, Zap } from 'lucide-react'
+import { ChevronRight, Crown, EyeOff, LogIn, LogOut, Monitor, Moon, Plug, Sun, Users, Webhook, Zap } from 'lucide-react'
 import { stripePromise } from '@/lib/stripe'
 import { supabase } from '@/lib/supabase'
 import UserAvatar from '@/components/layout/UserAvatar'
@@ -34,6 +35,7 @@ const THEME_OPTIONS = [
 
 export default function AccountSettingsPage() {
   const { user, subscription, subscriptionTier, isPremium, isGuest, signOut, updateSubscription } = useAuth()
+  const { connections } = useConnectedSources()
   const { theme, setTheme } = useTheme()
   const [servingSize, setServingSize] = useState(
     String(subscription?.default_serving_size ?? 2)
@@ -263,22 +265,30 @@ export default function AccountSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Future integrations placeholder */}
-      <Card className="opacity-60">
+      {/* Connections (CB_12) — Airtable v1, generic Connected Sources framework */}
+      <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Zap className="w-4 h-4" />
-            Integrations
-            <Badge variant="outline" className="text-xs ml-auto">Coming soon</Badge>
-          </CardTitle>
-          <CardDescription>
-            Connect MealPlan with your favourite shopping apps and services.
-          </CardDescription>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Plug className="w-4 h-4" />
+                Connections
+              </CardTitle>
+              <CardDescription className="mt-1">
+                Bring your own recipes into For You from Airtable and other sources.
+              </CardDescription>
+            </div>
+            {connections.length > 0 && (
+              <Badge variant="secondary" className="shrink-0">
+                {connections.length} connected
+              </Badge>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Integrations with Aldi, AnyList, Instacart, and others are planned for a future release.
-          </p>
+          <Button variant="outline" className="w-full" asChild>
+            <Link to="/settings/connections">Manage connections</Link>
+          </Button>
         </CardContent>
       </Card>
 

@@ -10,6 +10,9 @@ import DietaryPreferencesPage from '@/pages/DietaryPreferencesPage'
 import IngredientsPage from '@/pages/IngredientsPage'
 import ShoppingListPage from '@/pages/ShoppingListPage'
 import HistoryPage from '@/pages/HistoryPage'
+import AirtableCallbackPage from '@/pages/AirtableCallbackPage'
+import ConnectionsPage from '@/pages/ConnectionsPage'
+import ForYouPage from '@/pages/ForYouPage'
 import PrivacyPage from '@/pages/PrivacyPage'
 
 export const router = createBrowserRouter([
@@ -27,6 +30,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/plan" replace /> },
       { path: 'plan', element: <PlanPage /> },
+      { path: 'for-you', element: <ForYouPage /> },
       { path: 'basket', element: <BasketPage /> },
       { path: 'favorites', element: <FavoritesPage /> },
       { path: 'hidden', element: <HiddenPage /> },
@@ -35,6 +39,8 @@ export const router = createBrowserRouter([
       { path: 'ingredients', element: <IngredientsPage /> },
       { path: 'shopping-list', element: <ShoppingListPage /> },
       { path: 'history', element: <HistoryPage /> },
+      { path: 'settings/connections', element: <ConnectionsPage /> },
+      { path: 'settings/connections/airtable/callback', element: <AirtableCallbackPage /> },
     ],
   },
   {
