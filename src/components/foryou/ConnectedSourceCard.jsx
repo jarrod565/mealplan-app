@@ -83,17 +83,18 @@ const ConnectedSourceCard = forwardRef(function ConnectedSourceCard(
         isTop ? 'cursor-grab active:cursor-grabbing' : ''
       )}
     >
-      {/* Natural aspect ratio image, aligned to top */}
-      <div className="relative w-full aspect-[4/3] bg-secondary shrink-0 overflow-hidden">
+      {/* Photo — flex-1 so it dominates the card like SwipeCard's, instead of a
+          fixed aspect ratio that leaves it thumbnail-sized in a taller card. */}
+      <div className="relative flex-1 overflow-hidden">
         {card.image_url ? (
           <img
             src={card.image_url}
             alt={card.title}
-            className="w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover"
             draggable={false}
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="absolute inset-0 bg-secondary flex items-center justify-center">
             <span className="text-6xl">🍽️</span>
           </div>
         )}
@@ -124,11 +125,35 @@ const ConnectedSourceCard = forwardRef(function ConnectedSourceCard(
             <Heart className={cn('w-5 h-5', isFavorited && 'fill-current')} />
           </button>
         )}
+
+        {/* Bottom gradient — darkens photo so the overlaid buttons stay legible */}
+        <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+
+        {/* Action buttons — overlaid on the photo (SwipeCard's placement), not a
+            separate row below the title. No Never — Connected Sources hide it. */}
+        {isTop && (flags.yes || flags.no) && (
+          <div className="absolute bottom-6 inset-x-0 z-10 flex items-center justify-center gap-8">
+            {flags.no && (
+              <OverlayButton onClick={handleNoClick} label="Skip" icon={<X className="w-[1.1rem] h-[1.1rem]" />} />
+            )}
+            {flags.yes && (
+              <OverlayButton
+                onClick={handleYesClick}
+                label="Yes!"
+                icon={<Plus className="w-6 h-6" strokeWidth={2.5} />}
+                large
+                yes
+              />
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Info panel — title, source footer, Yes/No only (no Never, no prep/difficulty, no ingredients row) */}
-      <div className="flex-1 flex flex-col bg-card min-h-0">
-        <div className="px-4 pt-3.5 pb-2 flex-1 min-h-0">
+      {/* Info panel — title + source footer only now that Yes/No live on the photo.
+          shrink-0 (not flex-1): this panel is content-sized so the photo above absorbs all
+          leftover space instead of leaving dead space below the text. */}
+      <div className="shrink-0 flex flex-col bg-card">
+        <div className="px-4 pt-3.5 pb-2">
           <h2 className="font-bold text-base leading-snug text-foreground line-clamp-2">
             {card.title || 'Untitled recipe'}
           </h2>
@@ -136,32 +161,28 @@ const ConnectedSourceCard = forwardRef(function ConnectedSourceCard(
             <p className="text-xs text-muted-foreground mt-1.5 truncate">{card.source_footer}</p>
           )}
         </div>
-
-        {isTop && (flags.yes || flags.no) && (
-          <div className="flex items-center justify-center gap-6 px-4 py-3.5 border-t border-border/40 shrink-0">
-            {flags.no && (
-              <button
-                onClick={handleNoClick}
-                aria-label="Skip"
-                className="w-12 h-12 rounded-full flex items-center justify-center border-2 border-border text-muted-foreground hover:bg-secondary active:scale-95 transition-all"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            )}
-            {flags.yes && (
-              <button
-                onClick={handleYesClick}
-                aria-label="Yes"
-                className="w-[4.5rem] h-[4.5rem] rounded-full flex items-center justify-center bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-400 active:scale-95 transition-all"
-              >
-                <Plus className="w-7 h-7" strokeWidth={2.5} />
-              </button>
-            )}
-          </div>
-        )}
       </div>
     </animated.div>
   )
 })
 
 export default ConnectedSourceCard
+
+// Buttons overlaid on the photo — mirrors SwipeCard.jsx's OverlayButton exactly
+function OverlayButton({ onClick, label, icon, large = false, yes = false }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      className={cn(
+        'rounded-full flex items-center justify-center active:scale-95 transition-all',
+        large ? 'w-[4.5rem] h-[4.5rem]' : 'w-12 h-12',
+        yes
+          ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-400'
+          : 'border-2 border-white/30 bg-white/20 backdrop-blur-sm text-white shadow-lg hover:bg-white/30'
+      )}
+    >
+      {icon}
+    </button>
+  )
+}
