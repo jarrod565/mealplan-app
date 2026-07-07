@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import AppLayout from '@/components/layout/AppLayout'
+import RouteErrorBoundary from '@/components/layout/RouteErrorBoundary'
 import SignInPage from '@/pages/SignInPage'
 import PlanPage from '@/pages/PlanPage'
 import BasketPage from '@/pages/BasketPage'
@@ -19,28 +20,34 @@ export const router = createBrowserRouter([
   {
     path: '/sign-in',
     element: <SignInPage />,
+    errorElement: <RouteErrorBoundary />,
   },
   {
     path: '/privacy',
     element: <PrivacyPage />,
+    errorElement: <RouteErrorBoundary />,
   },
   {
     path: '/',
     element: <AppLayout />,
+    // Fail-safe for errors in AppLayout itself (Sidebar/BottomNav/auth gate).
+    // Every child below also has its own errorElement so a crash there is
+    // caught at the child level instead, leaving AppLayout (and nav) mounted.
+    errorElement: <RouteErrorBoundary />,
     children: [
       { index: true, element: <Navigate to="/plan" replace /> },
-      { path: 'plan', element: <PlanPage /> },
-      { path: 'for-you', element: <ForYouPage /> },
-      { path: 'basket', element: <BasketPage /> },
-      { path: 'favorites', element: <FavoritesPage /> },
-      { path: 'hidden', element: <HiddenPage /> },
-      { path: 'settings', element: <AccountSettingsPage /> },
-      { path: 'settings/dietary', element: <DietaryPreferencesPage /> },
-      { path: 'ingredients', element: <IngredientsPage /> },
-      { path: 'shopping-list', element: <ShoppingListPage /> },
-      { path: 'history', element: <HistoryPage /> },
-      { path: 'settings/connections', element: <ConnectionsPage /> },
-      { path: 'settings/connections/airtable/callback', element: <AirtableCallbackPage /> },
+      { path: 'plan', element: <PlanPage />, errorElement: <RouteErrorBoundary /> },
+      { path: 'for-you', element: <ForYouPage />, errorElement: <RouteErrorBoundary /> },
+      { path: 'basket', element: <BasketPage />, errorElement: <RouteErrorBoundary /> },
+      { path: 'favorites', element: <FavoritesPage />, errorElement: <RouteErrorBoundary /> },
+      { path: 'hidden', element: <HiddenPage />, errorElement: <RouteErrorBoundary /> },
+      { path: 'settings', element: <AccountSettingsPage />, errorElement: <RouteErrorBoundary /> },
+      { path: 'settings/dietary', element: <DietaryPreferencesPage />, errorElement: <RouteErrorBoundary /> },
+      { path: 'ingredients', element: <IngredientsPage />, errorElement: <RouteErrorBoundary /> },
+      { path: 'shopping-list', element: <ShoppingListPage />, errorElement: <RouteErrorBoundary /> },
+      { path: 'history', element: <HistoryPage />, errorElement: <RouteErrorBoundary /> },
+      { path: 'settings/connections', element: <ConnectionsPage />, errorElement: <RouteErrorBoundary /> },
+      { path: 'settings/connections/airtable/callback', element: <AirtableCallbackPage />, errorElement: <RouteErrorBoundary /> },
     ],
   },
   {
