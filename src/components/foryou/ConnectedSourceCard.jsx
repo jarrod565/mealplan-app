@@ -85,7 +85,7 @@ const ConnectedSourceCard = forwardRef(function ConnectedSourceCard(
     >
       {/* Photo — flex-1 so it dominates the card like SwipeCard's, instead of a
           fixed aspect ratio that leaves it thumbnail-sized in a taller card. */}
-      <div className="relative flex-1 bg-secondary overflow-hidden">
+      <div className="relative flex-1 overflow-hidden">
         {card.image_url ? (
           <img
             src={card.image_url}
@@ -94,7 +94,7 @@ const ConnectedSourceCard = forwardRef(function ConnectedSourceCard(
             draggable={false}
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="absolute inset-0 bg-secondary flex items-center justify-center">
             <span className="text-6xl">🍽️</span>
           </div>
         )}
