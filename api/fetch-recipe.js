@@ -33,8 +33,34 @@ function extractImage(html) {
   return extractMetaContent(html, ['og:image', 'twitter:image'])
 }
 
+// Schema.org Recipe markup comes in two forms in the wild: JSON-LD (the
+// `"@type": "Recipe"` pattern) and the older Microdata format
+// (itemtype="https://schema.org/Recipe" on a container element). Some sites
+// — including at least one WordPress recipe plugin configuration — only
+// emit Microdata, with no JSON-LD block at all, so checking JSON-LD alone
+// produces false negatives ("doesn't look like a recipe") on pages that
+// genuinely are recipes.
 function looksLikeRecipe(html) {
-  return /"@type"\s*:\s*"(Recipe|HowTo)"/i.test(html)
+  if (/"@type"\s*:\s*"(Recipe|HowTo)"/i.test(html)) return true
+  if (/itemtype\s*=\s*["'](?:https?:)?\/\/schema\.org\/(Recipe|HowTo)["']/i.test(html)) return true
+  return false
+}
+
+// Extracts itemprop="recipeIngredient" text content for Microdata-marked-up
+// pages. Regex-based (no DOM parser available in this runtime) — the
+// backreference to the opening tag name keeps the match scoped to that
+// element even if it has nested inline tags, and inner tags are stripped
+// before decoding entities.
+function extractMicrodataIngredients(html) {
+  const matches = html.matchAll(/<([a-z0-9]+)([^>]*\bitemprop=["']recipeIngredient["'][^>]*)>([\s\S]*?)<\/\1>/gi)
+  const ingredients = []
+
+  for (const match of matches) {
+    const text = decodeHtmlEntities(match[3].replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim()
+    if (text) ingredients.push(text)
+  }
+
+  return ingredients
 }
 
 function decodeJsonLd(value) {
@@ -76,13 +102,19 @@ function extractIngredientsFromHtml(html) {
         : null
 
     if (Array.isArray(ingredientList)) {
-      return ingredientList
+      const jsonLdIngredients = ingredientList
         .filter((item) => typeof item === 'string' && item.trim())
         .map((item) => item.trim())
+      if (jsonLdIngredients.length > 0) return jsonLdIngredients
     }
   }
 
-  return []
+  // No JSON-LD ingredients found — try Microdata before giving up. Sites
+  // that mark up the Recipe container via itemtype but only partially
+  // implement it (e.g. no recipeIngredient itemprops at all) will still
+  // return [] here, same as before; this only helps pages that actually
+  // marked up their ingredient list this way.
+  return extractMicrodataIngredients(normalized)
 }
 
 // Some recipe sites (WAFs, bot-protection plugins) block requests that
