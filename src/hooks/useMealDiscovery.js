@@ -33,6 +33,11 @@ export function useMealDiscovery() {
   // Refs hold session-only state that shouldn't trigger re-renders
   const fullBatchRef = useRef([])
   const noPileRef = useRef(new Set())
+  // CB_03: a depleted batch is reshuffled once — if that reshuffled pool
+  // also empties out, the empty state shows (fresh API call only on Reload).
+  // Without this, a user who keeps swiping No recycles the same pool forever
+  // and the empty state never appears.
+  const reshuffledRef = useRef(false)
   // Stable snapshot of dietParams to avoid double-fetching on context updates
   const dietParamsRef = useRef(null)
 
@@ -51,6 +56,7 @@ export function useMealDiscovery() {
         const meals = await fetchMealBatch(params)
         fullBatchRef.current = meals
         noPileRef.current = new Set()
+        reshuffledRef.current = false
         const visible = meals.filter((m) => !hiddenIds.has(m.meal_id))
         setDeck(visible)
         setStatus(visible.length === 0 ? 'empty' : 'idle')
@@ -80,15 +86,20 @@ export function useMealDiscovery() {
       const next = prev.slice(1)
       if (next.length > 0) return next
 
-      // Deck depleted — reshuffle No-swiped meals from this session
-      const reshuffled = shuffle(
-        fullBatchRef.current.filter(
-          (m) => noPileRef.current.has(m.meal_id) && !hiddenIds.has(m.meal_id)
+      // Deck depleted — reshuffle No-swiped meals from this session, but only
+      // once per batch. A second depletion (of the reshuffled pool) goes
+      // straight to empty instead of recycling the same meals forever.
+      if (!reshuffledRef.current) {
+        const reshuffled = shuffle(
+          fullBatchRef.current.filter(
+            (m) => noPileRef.current.has(m.meal_id) && !hiddenIds.has(m.meal_id)
+          )
         )
-      )
-      if (reshuffled.length > 0) {
-        noPileRef.current = new Set()
-        return reshuffled
+        if (reshuffled.length > 0) {
+          reshuffledRef.current = true
+          noPileRef.current = new Set()
+          return reshuffled
+        }
       }
 
       // Both pools empty — trigger reload prompt
@@ -130,6 +141,7 @@ export function useMealDiscovery() {
       const meals = await fetchMealBatch(params)
       fullBatchRef.current = meals
       noPileRef.current = new Set()
+      reshuffledRef.current = false
       const visible = meals.filter((m) => !hiddenIds.has(m.meal_id))
       setDeck(visible)
       setStatus(visible.length === 0 ? 'empty' : 'idle')

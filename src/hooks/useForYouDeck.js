@@ -43,6 +43,10 @@ export function useForYouDeck() {
 
   const fullPoolRef = useRef([]) // all cards fetched this session, across reshuffles
   const noPileRef = useRef(new Set()) // session-only No-swiped meal_ids — never persisted
+  // Mirrors useMealDiscovery.js: a depleted pool is reshuffled once per
+  // batch. Without this, swiping No on everything recycles the same cards
+  // forever and the empty state never appears.
+  const reshuffledRef = useRef(false)
 
   const activeConnections = connections.filter(
     (c) => activeSourceIds.includes(c.id) && c.status === 'connected'
@@ -105,6 +109,7 @@ export function useForYouDeck() {
     setErrorMessage(null)
     noPileRef.current = new Set()
     fullPoolRef.current = []
+    reshuffledRef.current = false
 
     if (activeConnections.length === 0) {
       setDeck([])
@@ -152,16 +157,19 @@ export function useForYouDeck() {
       const next = prev.slice(1)
       if (next.length > 0) return next
 
-      // Deck depleted — reshuffle this session's No-swiped cards, same
+      // Deck depleted — reshuffle this session's No-swiped cards once, same
       // progression as useMealDiscovery (Spoonacular) before showing empty.
-      const reshuffled = shuffle(
-        fullPoolRef.current.filter(
-          (c) => noPileRef.current.has(c.meal_id) && !isInBasket(c.meal_id)
+      if (!reshuffledRef.current) {
+        const reshuffled = shuffle(
+          fullPoolRef.current.filter(
+            (c) => noPileRef.current.has(c.meal_id) && !isInBasket(c.meal_id)
+          )
         )
-      )
-      if (reshuffled.length > 0) {
-        noPileRef.current = new Set()
-        return reshuffled
+        if (reshuffled.length > 0) {
+          reshuffledRef.current = true
+          noPileRef.current = new Set()
+          return reshuffled
+        }
       }
 
       setStatus('empty')
