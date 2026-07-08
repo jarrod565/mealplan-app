@@ -19,14 +19,14 @@ import {
 } from '@/components/ui/alert-dialog'
 import {
   ArrowLeft, ChevronRight, Database, Loader2,
-  Plug, Trash2, AlertTriangle, CheckCircle2, ImageOff,
+  Plug, Trash2, AlertTriangle, CheckCircle2, ImageOff, RefreshCw,
 } from 'lucide-react'
 import UserAvatar from '@/components/layout/UserAvatar'
 
 const PENDING_CONNECTION_KEY = 'airtable_pending_connection'
 
 export default function ConnectionsPage() {
-  const { connections, isLoading, disconnectSource, saveConnection } = useConnectedSources()
+  const { connections, isLoading, disconnectSource, saveConnection, markReconnectRequired } = useConnectedSources()
 
   // Wizard state — 'list' is the default Settings → Connections view; the
   // rest are steps in the "Add Connection" flow (CB_12 setup flow).
@@ -45,9 +45,15 @@ export default function ConnectionsPage() {
   const [mappingLoading, setMappingLoading] = useState(false)
   const [sampleRecord, setSampleRecord] = useState(null)
   const [columnMapping, setColumnMapping] = useState({ image: null, title: null, url: null })
+  // true when the mapping step was pre-populated from a stored connection
+  // (Remap) instead of a fresh Airtable fetch — Save is then the one point
+  // that talks to Airtable, to validate before persisting.
+  const [usingCachedSchema, setUsingCachedSchema] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const [disconnectTarget, setDisconnectTarget] = useState(null)
+
+  const remapConnection = remapConnectionId ? connections.find((c) => c.id === remapConnectionId) : null
 
   // Pick up the OAuth handoff left by AirtableCallbackPage and continue
   // straight into base selection.
@@ -75,6 +81,7 @@ export default function ConnectionsPage() {
     setSelectedTable(null)
     setSampleRecord(null)
     setColumnMapping({ image: null, title: null, url: null })
+    setUsingCachedSchema(false)
   }
 
   async function goToSelectBase(accessToken) {
@@ -99,10 +106,32 @@ export default function ConnectionsPage() {
     }
   }
 
-  async function handleRemap(connection) {
+  // Fresh OAuth round-trip for a connection stuck in "Reconnect needed".
+  // AirtableCallbackPage reads the connection id back out after the redirect
+  // and updates just the tokens — base/table/column_mapping are untouched,
+  // so the user never re-does base/table selection.
+  async function handleReconnect(connection) {
+    try {
+      await startAirtableOAuth({ reconnectConnectionId: connection.id })
+    } catch {
+      toast.error('Airtable connection is not configured yet.')
+    }
+  }
+
+  // Remap pre-populates the mapping step straight from the stored connection
+  // — no Airtable API call here. If nothing's ever been cached (a connection
+  // saved before cached_fields existed), the dropdowns just fall back to
+  // showing the currently-mapped column names with no other options, until
+  // Save re-fetches and refreshes the cache.
+  function handleRemap(connection) {
     setRemapConnectionId(connection.id)
     setPendingTokens({ access_token: connection.access_token, refresh_token: connection.refresh_token })
-    await goToSelectBase(connection.access_token)
+    setSelectedBase({ id: connection.base_id, name: connection.base_name })
+    setSelectedTable({ id: connection.table_id, name: connection.table_name, fields: connection.cached_fields ?? [] })
+    setColumnMapping(connection.column_mapping ?? { image: null, title: null, url: null })
+    setSampleRecord(null)
+    setUsingCachedSchema(true)
+    setStep('mapping')
   }
 
   async function handleSelectBase(base) {
@@ -123,6 +152,7 @@ export default function ConnectionsPage() {
     setSelectedTable(table)
     setStep('mapping')
     setMappingLoading(true)
+    setUsingCachedSchema(false)
     try {
       const { records } = await listAirtableRecords(pendingTokens.access_token, selectedBase.id, table.id, { pageSize: 1 })
       const record = records[0] ?? null
@@ -138,12 +168,37 @@ export default function ConnectionsPage() {
   async function handleConfirmMapping() {
     setSaving(true)
     try {
+      let tableForSave = selectedTable
+      let fieldsForSave = selectedTable?.fields ?? []
+
+      // Remap skipped every Airtable call to get here — Save is where this
+      // flow finally talks to Airtable, both to confirm the token/table are
+      // still good and to refresh the cached field list for next time.
+      if (usingCachedSchema) {
+        try {
+          const freshTables = await listAirtableTables(pendingTokens.access_token, selectedBase.id)
+          const freshTable = freshTables.find((t) => t.id === selectedTable.id)
+          if (!freshTable) throw new Error('Table no longer exists')
+          tableForSave = freshTable
+          fieldsForSave = freshTable.fields ?? []
+        } catch (err) {
+          if (remapConnectionId && (err?.status === 401 || err?.status === 403)) {
+            await markReconnectRequired(remapConnectionId)
+            toast.error('Your Airtable connection has expired. Please reconnect before saving changes.')
+          } else {
+            toast.error('Could not verify this connection with Airtable. Please try again.')
+          }
+          return
+        }
+      }
+
       await saveConnection({
         connectionId: remapConnectionId,
         tokens: pendingTokens,
         base: selectedBase,
-        table: selectedTable,
+        table: tableForSave,
         columnMapping,
+        cachedFields: fieldsForSave,
       })
       toast.success('Connection saved.')
       resetWizard()
@@ -192,6 +247,7 @@ export default function ConnectionsPage() {
             connections={connections}
             isLoading={isLoading}
             onAdd={handleAddConnection}
+            onReconnect={handleReconnect}
             onRemap={handleRemap}
             onDisconnect={setDisconnectTarget}
           />
@@ -225,6 +281,9 @@ export default function ConnectionsPage() {
             saving={saving}
             onConfirm={handleConfirmMapping}
             onCancel={resetWizard}
+            usingCachedSchema={usingCachedSchema}
+            needsReconnect={remapConnection?.status === 'reconnect_required'}
+            onReconnect={() => remapConnection && handleReconnect(remapConnection)}
           />
         )}
       </div>
@@ -248,7 +307,7 @@ export default function ConnectionsPage() {
   )
 }
 
-function ConnectionsList({ connections, isLoading, onAdd, onRemap, onDisconnect }) {
+function ConnectionsList({ connections, isLoading, onAdd, onReconnect, onRemap, onDisconnect }) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
@@ -295,6 +354,11 @@ function ConnectionsList({ connections, isLoading, onAdd, onRemap, onDisconnect 
                 </div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
+                {c.status === 'reconnect_required' && (
+                  <Button variant="ghost" size="sm" onClick={() => onReconnect(c)}>
+                    Reconnect
+                  </Button>
+                )}
                 <Button variant="ghost" size="sm" onClick={() => onRemap(c)}>
                   Remap
                 </Button>
@@ -358,7 +422,10 @@ const MAPPING_FIELDS = [
   { key: 'url', label: 'Destination URL column', required: true },
 ]
 
-function MappingStep({ table, sampleRecord, loading, columnMapping, onChangeMapping, saving, onConfirm, onCancel }) {
+function MappingStep({
+  table, sampleRecord, loading, columnMapping, onChangeMapping, saving, onConfirm, onCancel,
+  usingCachedSchema = false, needsReconnect = false, onReconnect,
+}) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
@@ -370,6 +437,15 @@ function MappingStep({ table, sampleRecord, loading, columnMapping, onChangeMapp
 
   const fields = table?.fields ?? []
   const fieldByName = new Map(fields.map((f) => [f.name, f]))
+
+  // Remap has no live field list to offer for connections saved before
+  // cached_fields existed — fall back to at least showing whatever columns
+  // are already mapped so the select isn't left silently blank.
+  const knownNames = new Set(fields.map((f) => f.name))
+  const fallbackOptions = Object.values(columnMapping)
+    .filter((name) => name && !knownNames.has(name))
+    .map((name) => ({ id: name, name }))
+  const selectOptions = [...fields, ...fallbackOptions]
 
   function fieldValue(columnName) {
     if (!columnName || !sampleRecord) return null
@@ -384,7 +460,25 @@ function MappingStep({ table, sampleRecord, loading, columnMapping, onChangeMapp
 
   return (
     <div className="space-y-5">
-      {/* Live preview card */}
+      {needsReconnect && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 flex items-start gap-3">
+          <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium">This connection needs to be reconnected</p>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+              The mapping below is from before it lost access. You can still adjust it, but saving
+              will need a fresh connection to Airtable.
+            </p>
+            <Button variant="outline" size="sm" onClick={onReconnect} className="mt-3 gap-2">
+              <RefreshCw className="w-3.5 h-3.5" />
+              Reconnect Airtable
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Live preview card — no sample record when remapping from cache, so
+          this shows placeholders until Save re-fetches from Airtable. */}
       <div>
         <p className="text-sm font-medium text-muted-foreground mb-2">Preview</p>
         <div className="rounded-2xl border bg-card overflow-hidden">
@@ -405,7 +499,9 @@ function MappingStep({ table, sampleRecord, loading, columnMapping, onChangeMapp
       {/* Column mapping — auto-detected, user-correctable */}
       <div className="rounded-2xl border bg-card p-4 space-y-4">
         <p className="text-xs text-muted-foreground leading-relaxed">
-          Auto-detected from your table — double check these before saving.
+          {usingCachedSchema
+            ? 'Showing your last saved column mapping. Saving will confirm it’s still valid with Airtable.'
+            : 'Auto-detected from your table — double check these before saving.'}
         </p>
         {MAPPING_FIELDS.map(({ key, label, required }) => (
           <div key={key} className="space-y-1.5">
@@ -424,7 +520,7 @@ function MappingStep({ table, sampleRecord, loading, columnMapping, onChangeMapp
               className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
             >
               <option value="">{required ? 'Select a column…' : 'None'}</option>
-              {fields.map((f) => (
+              {selectOptions.map((f) => (
                 <option key={f.id} value={f.name}>{f.name}</option>
               ))}
             </select>

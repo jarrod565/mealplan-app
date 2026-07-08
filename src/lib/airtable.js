@@ -36,7 +36,12 @@ export function getAirtableRedirectUri() {
 // Redirects the browser to Airtable's consent screen. code_verifier and the
 // CSRF state token are stashed in sessionStorage — read back and cleared by
 // completeAirtableOAuth() when Airtable redirects back to our callback route.
-export async function startAirtableOAuth() {
+//
+// reconnectConnectionId, when passed, rides along in the same sessionStorage
+// payload so it survives the full-page redirect to Airtable and back. The
+// callback page uses it to update an existing connection's tokens in place
+// instead of routing into the "new connection" base/table wizard.
+export async function startAirtableOAuth({ reconnectConnectionId } = {}) {
   const clientId = import.meta.env.VITE_AIRTABLE_CLIENT_ID
   if (!clientId) throw new Error('Missing VITE_AIRTABLE_CLIENT_ID')
 
@@ -44,7 +49,10 @@ export async function startAirtableOAuth() {
   const challenge = await generateCodeChallenge(verifier)
   const state = generateRandomToken()
 
-  sessionStorage.setItem(PKCE_STORAGE_KEY, JSON.stringify({ verifier, state }))
+  sessionStorage.setItem(
+    PKCE_STORAGE_KEY,
+    JSON.stringify({ verifier, state, reconnectConnectionId: reconnectConnectionId ?? null })
+  )
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -60,14 +68,16 @@ export async function startAirtableOAuth() {
 }
 
 // Exchanges the authorization code for tokens via the airtable-oauth Edge
-// Function. Returns { access_token, refresh_token, expires_in } — the caller
-// is responsible for persisting a connected_sources row once base/table/
-// column mapping are chosen (this function only completes the OAuth leg).
+// Function. Returns { access_token, refresh_token, expires_in, reconnectConnectionId }
+// — the caller is responsible for persisting a connected_sources row once
+// base/table/column mapping are chosen (this function only completes the
+// OAuth leg), or for updating an existing row's tokens when
+// reconnectConnectionId is present.
 export async function completeAirtableOAuth(code, state) {
   const stored = sessionStorage.getItem(PKCE_STORAGE_KEY)
   if (!stored) throw new Error('Missing OAuth session — please try connecting again.')
 
-  const { verifier, state: expectedState } = JSON.parse(stored)
+  const { verifier, state: expectedState, reconnectConnectionId } = JSON.parse(stored)
   sessionStorage.removeItem(PKCE_STORAGE_KEY)
 
   if (!state || state !== expectedState) {
@@ -83,7 +93,7 @@ export async function completeAirtableOAuth(code, state) {
     },
   })
   if (error) throw error
-  return data
+  return { ...data, reconnectConnectionId: reconnectConnectionId ?? null }
 }
 
 // CB_09: "Token refresh is attempted at the start of every For You session

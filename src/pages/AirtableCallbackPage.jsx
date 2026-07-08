@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
+import { useConnectedSources } from '@/contexts/ConnectedSourcesContext'
 import { completeAirtableOAuth } from '@/lib/airtable'
 import { Button } from '@/components/ui/button'
 import { Loader2, AlertTriangle } from 'lucide-react'
@@ -16,6 +18,7 @@ export default function AirtableCallbackPage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { isGuest } = useAuth()
+  const { updateConnectionTokens } = useConnectedSources()
   const [status, setStatus] = useState('exchanging')
   const [errorMessage, setErrorMessage] = useState(null)
   const ranRef = useRef(false)
@@ -50,7 +53,21 @@ export default function AirtableCallbackPage() {
     }
 
     completeAirtableOAuth(code, state)
-      .then((tokens) => {
+      .then(async ({ reconnectConnectionId, ...tokens }) => {
+        // Reconnect flow: update the existing connection's tokens in place and
+        // skip the base/table/mapping wizard entirely — base_id, table_id, and
+        // column_mapping are left untouched by updateConnectionTokens.
+        if (reconnectConnectionId) {
+          try {
+            await updateConnectionTokens(reconnectConnectionId, tokens)
+            toast.success('Reconnected to Airtable.')
+          } catch {
+            toast.error('Reconnected to Airtable, but could not update the saved connection. Please try again.')
+          }
+          navigate('/settings/connections', { replace: true })
+          return
+        }
+
         sessionStorage.setItem(PENDING_CONNECTION_KEY, JSON.stringify(tokens))
         navigate('/settings/connections', { replace: true })
       })

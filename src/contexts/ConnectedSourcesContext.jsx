@@ -59,7 +59,7 @@ export function ConnectedSourcesProvider({ children }) {
   // confirmed before the connection is saved" — nothing is persisted before
   // this point in the wizard). connectionId present = re-mapping an existing
   // connection (update); absent = a brand new one (insert).
-  async function saveConnection({ connectionId, tokens, base, table, columnMapping }) {
+  async function saveConnection({ connectionId, tokens, base, table, columnMapping, cachedFields }) {
     if (!subscription?.id) throw new Error('No subscription — please sign out and sign back in.')
 
     const record = {
@@ -71,6 +71,9 @@ export function ConnectedSourcesProvider({ children }) {
       table_id: table.id,
       table_name: table.name,
       column_mapping: columnMapping,
+      // Field list snapshot — lets a future Remap pre-populate the mapping UI
+      // straight from Supabase, with no Airtable API call until Save.
+      ...(cachedFields && { cached_fields: cachedFields }),
       ...(tokens && {
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
