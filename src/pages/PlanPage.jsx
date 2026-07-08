@@ -9,7 +9,7 @@ import ActiveFilterIndicator from '@/components/plan/ActiveFilterIndicator'
 import SwipeCard from '@/components/plan/SwipeCard'
 import NeverConfirmDialog from '@/components/plan/NeverConfirmDialog'
 import UserAvatar from '@/components/layout/UserAvatar'
-import { RefreshCw, Loader2, X } from 'lucide-react'
+import { RefreshCw, Loader2, X, SlidersHorizontal } from 'lucide-react'
 
 export default function PlanPage() {
   const { deck, status, errorMessage, swipeYes, swipeNo, swipeNever, reload } = useMealDiscovery()
@@ -99,17 +99,21 @@ export default function PlanPage() {
           </div>
         )}
 
-        {/* ── EMPTY ── */}
+        {/* ── EMPTY ── same pattern as ForYouPage's PoolExhaustedState: message,
+            filter-adjustment link, and a Reload button the user must tap —
+            no automatic refetch under any circumstance. */}
         {status === 'empty' && (
-          <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-6 max-w-xs mx-auto">
+          <div className="flex-1 flex flex-col items-center justify-center px-6 text-center gap-4 max-w-xs mx-auto">
             <p className="text-5xl">🎉</p>
             <p className="font-bold text-xl">You've seen it all!</p>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              You've gone through all available meals. Try loosening your dietary filters or
-              reload for a fresh batch.
+              You've gone through all available meals from your current filters.
             </p>
-            <Button asChild variant="outline" className="w-full">
-              <Link to="/settings/dietary">Adjust dietary filters</Link>
+            <Button asChild variant="outline" className="w-full gap-2">
+              <Link to="/settings/dietary">
+                <SlidersHorizontal className="w-4 h-4" />
+                Adjust dietary filters
+              </Link>
             </Button>
             <Button onClick={reload} className="w-full gap-2">
               <RefreshCw className="w-4 h-4" />
