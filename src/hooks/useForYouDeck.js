@@ -6,11 +6,12 @@ import { useConnectedSources } from '@/contexts/ConnectedSourcesContext'
 import { listAirtableRecords, refreshAirtableToken } from '@/lib/airtable'
 import { airtableRecordToCard, resolveCardMetadata } from '@/lib/airtableAdapter'
 
-// Mirrors useMealDiscovery.js's session-state shape (CB_12: "No/Skip behaves
-// identically to Spoonacular") — same shuffle, same No-pile Set, same
-// reshuffle-then-empty progression. What differs is the source: Airtable
-// rows fetched on demand instead of one Spoonacular batch call, across
-// however many active connections there are, interleaved.
+// Mirrors useMealDiscovery.js's No-pile Set/session-swipe-state shape, but
+// NOT its reshuffle-then-empty progression. CB_09/CB_12 are explicit that a
+// depleted For You deck goes straight to the empty state — No-swiped cards
+// only come back via an explicit Start Over / Reload tap (loadBatch), never
+// automatically. That's a deliberate divergence from Explore (CB_03), where
+// a depleted deck auto-reshuffles the No pile once before going empty.
 
 const PAGE_SIZE = 25
 const MAX_PAGES_PER_SOURCE = 3 // bounded — CB_12: "no pre-fetching or caching of the full base"
@@ -41,12 +42,7 @@ export function useForYouDeck() {
   const [status, setStatus] = useState('init')
   const [errorMessage, setErrorMessage] = useState(null)
 
-  const fullPoolRef = useRef([]) // all cards fetched this session, across reshuffles
   const noPileRef = useRef(new Set()) // session-only No-swiped meal_ids — never persisted
-  // Mirrors useMealDiscovery.js: a depleted pool is reshuffled once per
-  // batch. Without this, swiping No on everything recycles the same cards
-  // forever and the empty state never appears.
-  const reshuffledRef = useRef(false)
 
   const activeConnections = connections.filter(
     (c) => activeSourceIds.includes(c.id) && c.status === 'connected'
@@ -108,8 +104,6 @@ export function useForYouDeck() {
     setStatus('init')
     setErrorMessage(null)
     noPileRef.current = new Set()
-    fullPoolRef.current = []
-    reshuffledRef.current = false
 
     if (activeConnections.length === 0) {
       setDeck([])
@@ -126,7 +120,6 @@ export function useForYouDeck() {
       }
 
       const cards = await fetchFreshCards(ready, noPileRef.current)
-      fullPoolRef.current = cards
       setDeck(shuffle(cards))
       setStatus(cards.length === 0 ? 'empty' : 'idle')
     } catch (err) {
@@ -152,26 +145,13 @@ export function useForYouDeck() {
     return () => { cancelled = true }
   }, [deck])
 
+  // CB_09/CB_12: deck depletion goes straight to the empty state — no
+  // automatic reshuffle. No-swiped cards only return via an explicit
+  // Start Over / Reload tap, unlike Explore's Spoonacular deck.
   function advanceDeck() {
     setDeck((prev) => {
       const next = prev.slice(1)
       if (next.length > 0) return next
-
-      // Deck depleted — reshuffle this session's No-swiped cards once, same
-      // progression as useMealDiscovery (Spoonacular) before showing empty.
-      if (!reshuffledRef.current) {
-        const reshuffled = shuffle(
-          fullPoolRef.current.filter(
-            (c) => noPileRef.current.has(c.meal_id) && !isInBasket(c.meal_id)
-          )
-        )
-        if (reshuffled.length > 0) {
-          reshuffledRef.current = true
-          noPileRef.current = new Set()
-          return reshuffled
-        }
-      }
-
       setStatus('empty')
       return []
     })
