@@ -338,7 +338,7 @@ export default function BasketPage() {
                 ? 'Loading ingredients…'
                 : drawerDetails?.error
                   ? 'Ingredients unavailable'
-                  : drawerDetails?.source_type === 'url_import'
+                  : drawerDetails?.source_type === 'url_import' || drawerDetails?.source_type === 'airtable'
                     ? 'Ingredients extracted'
                     : `Ingredients${drawerDetails?.ingredients?.length ? ` · ${drawerDetails.ingredients.length}` : ''}`}
             </p>

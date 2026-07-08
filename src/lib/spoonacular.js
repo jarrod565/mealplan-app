@@ -141,20 +141,23 @@ export async function fetchMealDetails(mealId, meal = null) {
       ingredients: parseUrlImportIngredients(meal.extracted_ingredients),
       servings: meal.extracted_servings ?? null,
       difficulty: meal.extracted_difficulty ?? null,
-      source_type: 'url_import',
+      source_type: meal.source_type ?? 'url_import',
       source_url: meal.destination_url || meal.destinationUrl || meal.url || null,
     }
     ingredientCache.set(mealId, details)
     return details
   }
 
-  if (meal?.source_type === 'url_import') {
+  // Both url_import and airtable meals have no Spoonacular recipe ID to look
+  // up — their ingredients only exist at meal.destination_url, so both route
+  // through the same CB_10 extraction pipeline (/api/fetch-recipe).
+  if (meal?.source_type === 'url_import' || meal?.source_type === 'airtable') {
     const url = meal.destination_url || meal.destinationUrl || meal.url || null
     if (!url) {
-      throw new Error('URL import is missing a destination URL')
+      throw new Error(`${meal.source_type === 'airtable' ? 'This recipe' : 'URL import'} is missing a destination URL`)
     }
 
-    console.log('[spoonacular] url_import branch for', mealId, 'url=', url)
+    console.log(`[spoonacular] ${meal.source_type} branch for`, mealId, 'url=', url)
     try {
       console.log('[spoonacular] calling fetchRecipeIngredients for', url)
       const { ingredients, servings } = await fetchRecipeIngredients(url)
@@ -166,7 +169,7 @@ export async function fetchMealDetails(mealId, meal = null) {
         // than silently mis-scaling against a wrong number.
         servings: typeof servings === 'number' ? servings : null,
         difficulty: null,
-        source_type: 'url_import',
+        source_type: meal.source_type,
         source_url: url,
       }
       ingredientCache.set(mealId, details)
@@ -180,8 +183,8 @@ export async function fetchMealDetails(mealId, meal = null) {
 
       return details
     } catch (err) {
-      console.log('[spoonacular] url_import fetch failed for', mealId, err)
-      throw new Error('URL import ingredients unavailable')
+      console.log(`[spoonacular] ${meal.source_type} fetch failed for`, mealId, err)
+      throw new Error(`${meal.source_type === 'airtable' ? 'Airtable' : 'URL import'} ingredients unavailable`)
     }
   }
 
