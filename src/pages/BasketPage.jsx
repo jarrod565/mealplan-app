@@ -5,6 +5,7 @@ import { useConnectedSources } from '@/contexts/ConnectedSourcesContext'
 import { fetchMealDetails } from '@/lib/spoonacular'
 import { fetchRecipeMetadata, isPinterestUrl, isValidUrl, normalizeUrl } from '@/lib/urlImport'
 import { getPinterestPin } from '@/lib/pinterest'
+import { pinterestPinImageUrl } from '@/lib/pinterestAdapter'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -64,7 +65,7 @@ export default function BasketPage() {
           const pin = await getPinterestPin(pinterestConnection.access_token, pinId)
           return [item.meal_id, {
             title: pin.title || pin.description || null,
-            image_url: pin.media?.images?.original?.url ?? null,
+            image_url: pinterestPinImageUrl(pin),
           }]
         } catch {
           return [item.meal_id, { title: null, image_url: null }]

@@ -211,11 +211,15 @@ export function useForYouDeck() {
   // destination URL in the Basket — not the image, title, or any other
   // Pinterest content." Every other field is deliberately omitted (not just
   // left falsy) so BasketContext's `?? null` fallback persists nulls rather
-  // than any Pinterest-sourced display data.
+  // than any Pinterest-sourced display data. `name` is the one exception —
+  // basket_items.name is NOT NULL — so it gets a fixed, non-Pinterest
+  // placeholder rather than card.title; BasketPage re-fetches the real title
+  // by pin_id at render time and never reads this stored value for display.
   function swipeYes(card) {
     const meal = card.source_type === 'pinterest'
       ? {
           meal_id: card.meal_id,
+          name: 'Pinterest recipe',
           source_type: card.source_type,
           destination_url: card.destination_url,
         }

@@ -17,6 +17,23 @@ export function pinterestMealId(pinId) {
   return `pinterest:${pinId}`
 }
 
+// Pinterest's media.images response is keyed by size name, and which keys
+// show up depends on the app's approved access level — "original" is only
+// present for apps with elevated image-size approval, which this app's
+// current approval doesn't include. Most responses only carry the standard
+// breakpoints below. Try them largest-first, then fall back to whatever key
+// is actually present rather than assuming any one of them exists.
+const IMAGE_SIZE_PRIORITY = ['original', '1200x', '600x', '400x300', '150x150']
+
+export function pinterestPinImageUrl(pin) {
+  const images = pin.media?.images
+  if (!images) return null
+  for (const size of IMAGE_SIZE_PRIORITY) {
+    if (images[size]?.url) return images[size].url
+  }
+  return Object.values(images)[0]?.url ?? null
+}
+
 // pin: raw Pinterest pin object ({ id, title, media, link, board_id })
 // connection: persisted connected_sources row
 // boardName: fetched fresh from the Pinterest API this session — held in
@@ -29,7 +46,7 @@ export function pinterestPinToCard(pin, connection, boardName) {
     source_type: 'pinterest',
     connection_id: connection.id,
     title: pin.title || pin.description || 'Untitled pin',
-    image_url: pin.media?.images?.original?.url ?? null,
+    image_url: pinterestPinImageUrl(pin),
     destination_url: pin.link ?? null,
     source_footer: boardName ? `Pinterest / ${boardName}` : 'Pinterest',
     featureFlags: getSourceFeatureFlags('pinterest'),
