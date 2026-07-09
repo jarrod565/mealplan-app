@@ -5,6 +5,8 @@ import { useFavorites } from '@/contexts/FavoritesContext'
 import { useConnectedSources } from '@/contexts/ConnectedSourcesContext'
 import { listAirtableRecords, refreshAirtableToken } from '@/lib/airtable'
 import { airtableRecordToCard, resolveCardMetadata } from '@/lib/airtableAdapter'
+import { listPinterestBoards, listPinterestBoardPins, refreshPinterestToken } from '@/lib/pinterest'
+import { pinterestPinToCard } from '@/lib/pinterestAdapter'
 
 // Mirrors useMealDiscovery.js's No-pile Set/session-swipe-state shape, but
 // NOT its reshuffle-then-empty progression. CB_09/CB_12 are explicit that a
@@ -49,8 +51,8 @@ export function useForYouDeck() {
   )
 
   // CB_09: refresh any connection whose token is expired or about to expire
-  // before making any Airtable API calls. Failures drop that source from
-  // this session's active set and flip it to reconnect_required.
+  // before making any source API calls. Failures drop that source from this
+  // session's active set and flip it to reconnect_required.
   async function ensureFreshTokens(candidates) {
     const usable = []
     for (const connection of candidates) {
@@ -61,7 +63,8 @@ export function useForYouDeck() {
         continue
       }
       try {
-        const tokens = await refreshAirtableToken(connection.refresh_token)
+        const refresh = connection.source_type === 'pinterest' ? refreshPinterestToken : refreshAirtableToken
+        const tokens = await refresh(connection.refresh_token)
         usable.push(await updateConnectionTokens(connection.id, tokens))
       } catch {
         await markReconnectRequired(connection.id)
@@ -75,27 +78,74 @@ export function useForYouDeck() {
   // enough to keep the deck moving without pre-fetching a whole base at once.
   // Basket membership (permanent exclusion, per CB_12) is checked live via
   // isInBasket rather than a precomputed set, since it can change mid-session.
-  async function fetchFreshCards(readyConnections, noPile) {
+  async function fetchAirtableCards(connection, noPile) {
     const collected = []
-    for (const connection of readyConnections) {
-      let offset
+    let offset
+    for (let page = 0; page < MAX_PAGES_PER_SOURCE; page++) {
+      let result
+      try {
+        result = await listAirtableRecords(connection.access_token, connection.base_id, connection.table_id, {
+          pageSize: PAGE_SIZE,
+          offset,
+        })
+      } catch {
+        break // this source failed this round — skip it, other sources still count
+      }
+      const cards = result.records
+        .map((record) => airtableRecordToCard(record, connection))
+        .filter((card) => !noPile.has(card.meal_id) && !isInBasket(card.meal_id))
+      collected.push(...cards)
+      offset = result.offset
+      if (!offset || cards.length > 0) break
+    }
+    return collected
+  }
+
+  // Same bounded-pagination shape as fetchAirtableCards, but paginates each
+  // selected board via Pinterest's cursor-based `bookmark` param instead of
+  // Airtable's `offset`. Board names are fetched fresh once per connection
+  // (never persisted — CB_09 policy) and held only in this function's local
+  // scope, just long enough to stamp each card's source_footer.
+  async function fetchPinterestCards(connection, noPile) {
+    const boardIds = connection.config?.selected_board_ids ?? []
+    if (boardIds.length === 0) return []
+
+    let boardNameById
+    try {
+      const boards = await listPinterestBoards(connection.access_token)
+      boardNameById = new Map(boards.map((b) => [b.id, b.name]))
+    } catch {
+      return [] // this source failed this round — skip it, other sources still count
+    }
+
+    const collected = []
+    for (const boardId of boardIds) {
+      let bookmark
       for (let page = 0; page < MAX_PAGES_PER_SOURCE; page++) {
         let result
         try {
-          result = await listAirtableRecords(connection.access_token, connection.base_id, connection.table_id, {
-            pageSize: PAGE_SIZE,
-            offset,
-          })
+          result = await listPinterestBoardPins(connection.access_token, boardId, { pageSize: PAGE_SIZE, bookmark })
         } catch {
-          break // this source failed this round — skip it, other sources still count
+          break
         }
-        const cards = result.records
-          .map((record) => airtableRecordToCard(record, connection))
+        const cards = result.pins
+          .map((pin) => pinterestPinToCard(pin, connection, boardNameById.get(pin.board_id ?? boardId)))
           .filter((card) => !noPile.has(card.meal_id) && !isInBasket(card.meal_id))
         collected.push(...cards)
-        offset = result.offset
-        if (!offset || cards.length > 0) break
+        bookmark = result.bookmark
+        if (!bookmark || cards.length > 0) break
       }
+    }
+    return collected
+  }
+
+  async function fetchFreshCards(readyConnections, noPile) {
+    const collected = []
+    for (const connection of readyConnections) {
+      const cards = connection.source_type === 'pinterest'
+        ? await fetchPinterestCards(connection, noPile)
+        : await fetchAirtableCards(connection, noPile)
+      collected.push(...cards)
     }
     return collected
   }
@@ -157,17 +207,30 @@ export function useForYouDeck() {
     })
   }
 
+  // CB_09 Pinterest compliance: "The Yes button stores only the pin ID and
+  // destination URL in the Basket — not the image, title, or any other
+  // Pinterest content." Every other field is deliberately omitted (not just
+  // left falsy) so BasketContext's `?? null` fallback persists nulls rather
+  // than any Pinterest-sourced display data.
   function swipeYes(card) {
-    addToBasket({
-      meal_id: card.meal_id,
-      name: card.title,
-      title: card.title,
-      photo_url: card.image_url,
-      image_url: card.image_url,
-      source_type: card.source_type,
-      destination_url: card.destination_url,
-      source_domain: card.source_footer,
-    }).catch((err) => {
+    const meal = card.source_type === 'pinterest'
+      ? {
+          meal_id: card.meal_id,
+          source_type: card.source_type,
+          destination_url: card.destination_url,
+        }
+      : {
+          meal_id: card.meal_id,
+          name: card.title,
+          title: card.title,
+          photo_url: card.image_url,
+          image_url: card.image_url,
+          source_type: card.source_type,
+          destination_url: card.destination_url,
+          source_domain: card.source_footer,
+        }
+
+    addToBasket(meal).catch((err) => {
       console.error('addToBasket failed:', err)
       toast.error(err?.message ?? 'Could not add to basket. Please try again.')
     })

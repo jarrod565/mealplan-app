@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useBasket } from '@/contexts/BasketContext'
+import { useConnectedSources } from '@/contexts/ConnectedSourcesContext'
 import { fetchMealDetails } from '@/lib/spoonacular'
 import { fetchRecipeMetadata, isPinterestUrl, isValidUrl, normalizeUrl } from '@/lib/urlImport'
+import { getPinterestPin } from '@/lib/pinterest'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -28,6 +30,7 @@ import { cn, formatIngredientQty } from '@/lib/utils'
 
 export default function BasketPage() {
   const { basketItems, basketCount, removeFromBasket, addToBasket } = useBasket()
+  const { connections } = useConnectedSources()
 
   const [openMealId, setOpenMealId] = useState(null)
   const [drawerDetails, setDrawerDetails] = useState(null)
@@ -36,8 +39,60 @@ export default function BasketPage() {
   const [urlError, setUrlError] = useState('')
   const [isImporting, setIsImporting] = useState(false)
   const [confirmState, setConfirmState] = useState(null)
+  const [pinterestPinData, setPinterestPinData] = useState({})
   const cacheRef = useRef({})
   const inputRef = useRef(null)
+
+  const pinterestConnection = connections.find((c) => c.source_type === 'pinterest' && c.status === 'connected')
+
+  // CB_09: "Basket display re-fetches pin title/image from Pinterest API
+  // using stored pin_id." Only pin_id/destination_url are ever persisted for
+  // Pinterest basket entries — title/image live only in this session's React
+  // state, re-fetched fresh every time the basket renders.
+  useEffect(() => {
+    if (!pinterestConnection) return
+    const unresolved = basketItems.filter(
+      (m) => m.source_type === 'pinterest' && !pinterestPinData[m.meal_id]
+    )
+    if (unresolved.length === 0) return
+
+    let cancelled = false
+    Promise.all(
+      unresolved.map(async (item) => {
+        const pinId = item.meal_id.slice('pinterest:'.length)
+        try {
+          const pin = await getPinterestPin(pinterestConnection.access_token, pinId)
+          return [item.meal_id, {
+            title: pin.title || pin.description || null,
+            image_url: pin.media?.images?.original?.url ?? null,
+          }]
+        } catch {
+          return [item.meal_id, { title: null, image_url: null }]
+        }
+      })
+    ).then((entries) => {
+      if (cancelled) return
+      setPinterestPinData((prev) => ({ ...prev, ...Object.fromEntries(entries) }))
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [basketItems, pinterestConnection])
+
+  // Basket items with Pinterest display data (title/image) merged back in for
+  // rendering only — the underlying basketItems/Supabase rows never gain
+  // this data, per CB_09's storage policy.
+  const displayItems = basketItems.map((m) => {
+    if (m.source_type !== 'pinterest') return m
+    const pinData = pinterestPinData[m.meal_id]
+    if (!pinData) return m
+    return {
+      ...m,
+      title: pinData.title || m.title,
+      name: pinData.title || m.name,
+      image_url: pinData.image_url || m.image_url,
+      photo_url: pinData.image_url || m.photo_url,
+    }
+  })
 
   useEffect(() => {
     if (!openMealId) return
@@ -69,7 +124,7 @@ export default function BasketPage() {
       .finally(() => setDrawerLoading(false))
   }, [openMealId, basketItems])
 
-  const openMeal = basketItems.find((m) => m.meal_id === openMealId) ?? null
+  const openMeal = displayItems.find((m) => m.meal_id === openMealId) ?? null
 
   function handleOpenMeal(mealId) {
     setOpenMealId(mealId)
@@ -231,7 +286,7 @@ export default function BasketPage() {
 
       <div className="max-w-2xl mx-auto px-4 py-5">
         <div className="space-y-3">
-          {basketItems.map((meal) => (
+          {displayItems.map((meal) => (
             <BasketCard
               key={meal.meal_id}
               meal={meal}
@@ -338,7 +393,7 @@ export default function BasketPage() {
                 ? 'Loading ingredients…'
                 : drawerDetails?.error
                   ? 'Ingredients unavailable'
-                  : drawerDetails?.source_type === 'url_import' || drawerDetails?.source_type === 'airtable'
+                  : drawerDetails?.source_type === 'url_import' || drawerDetails?.source_type === 'airtable' || drawerDetails?.source_type === 'pinterest'
                     ? 'Ingredients extracted'
                     : `Ingredients${drawerDetails?.ingredients?.length ? ` · ${drawerDetails.ingredients.length}` : ''}`}
             </p>

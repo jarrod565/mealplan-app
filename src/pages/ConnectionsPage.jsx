@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { useConnectedSources } from '@/contexts/ConnectedSourcesContext'
 import { startAirtableOAuth, listAirtableBases, listAirtableTables, listAirtableRecords } from '@/lib/airtable'
 import { detectColumnMapping, resolveFieldValue } from '@/lib/airtableMapping'
+import { startPinterestOAuth, listPinterestBoards } from '@/lib/pinterest'
 import { getSourceDomain } from '@/lib/urlImport'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -18,30 +19,40 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import {
-  ArrowLeft, ChevronRight, Database, Loader2,
+  ArrowLeft, ChevronRight, Database, Loader2, Pin,
   Plug, Trash2, AlertTriangle, CheckCircle2, ImageOff, RefreshCw,
 } from 'lucide-react'
 import UserAvatar from '@/components/layout/UserAvatar'
 
-const PENDING_CONNECTION_KEY = 'airtable_pending_connection'
+const AIRTABLE_PENDING_KEY = 'airtable_pending_connection'
+const PINTEREST_PENDING_KEY = 'pinterest_pending_connection'
+
+function connectionLabel(connection) {
+  return connection.source_type === 'pinterest'
+    ? 'Pinterest'
+    : `${connection.base_name} / ${connection.table_name}`
+}
 
 export default function ConnectionsPage() {
-  const { connections, isLoading, disconnectSource, saveConnection, markReconnectRequired } = useConnectedSources()
+  const {
+    connections, isLoading, disconnectSource, saveConnection, savePinterestConnection, markReconnectRequired,
+  } = useConnectedSources()
 
-  // Wizard state — 'list' is the default Settings → Connections view; the
-  // rest are steps in the "Add Connection" flow (CB_12 setup flow).
+  // Wizard state — 'list' is the default Settings → Connections view. The
+  // rest are steps in the "Add Connection" flow: 'chooseSource' picks
+  // Airtable vs Pinterest, then each source has its own steps (CB_12 setup
+  // flow for Airtable; board selection only for CB_09 Pinterest).
   const [step, setStep] = useState('list')
+
+  // Airtable wizard state
   const [pendingTokens, setPendingTokens] = useState(null)
   const [remapConnectionId, setRemapConnectionId] = useState(null) // set = updating an existing connection, not inserting
-
   const [bases, setBases] = useState([])
   const [basesLoading, setBasesLoading] = useState(false)
   const [selectedBase, setSelectedBase] = useState(null)
-
   const [tables, setTables] = useState([])
   const [tablesLoading, setTablesLoading] = useState(false)
   const [selectedTable, setSelectedTable] = useState(null)
-
   const [mappingLoading, setMappingLoading] = useState(false)
   const [sampleRecord, setSampleRecord] = useState(null)
   const [columnMapping, setColumnMapping] = useState({ image: null, title: null, url: null })
@@ -51,22 +62,50 @@ export default function ConnectionsPage() {
   const [usingCachedSchema, setUsingCachedSchema] = useState(false)
   const [saving, setSaving] = useState(false)
 
+  // Pinterest wizard state — no base/table/column-mapping steps, board
+  // selection replaces them (CB_09).
+  const [pinterestPendingTokens, setPinterestPendingTokens] = useState(null)
+  const [pinterestConnectionId, setPinterestConnectionId] = useState(null) // set = editing boards on an existing connection
+  const [pinterestBoards, setPinterestBoards] = useState([])
+  const [pinterestBoardsLoading, setPinterestBoardsLoading] = useState(false)
+  const [pinterestBoardsError, setPinterestBoardsError] = useState(null)
+  const [selectedBoardIds, setSelectedBoardIds] = useState(new Set())
+  const [boardsSaving, setBoardsSaving] = useState(false)
+
   const [disconnectTarget, setDisconnectTarget] = useState(null)
 
   const remapConnection = remapConnectionId ? connections.find((c) => c.id === remapConnectionId) : null
+  const pinterestConnection = connections.find((c) => c.source_type === 'pinterest') ?? null
+  const editingPinterestConnection = pinterestConnectionId
+    ? connections.find((c) => c.id === pinterestConnectionId)
+    : null
 
-  // Pick up the OAuth handoff left by AirtableCallbackPage and continue
-  // straight into base selection.
+  // Pick up the OAuth handoff left by AirtableCallbackPage / PinterestCallbackPage
+  // and continue straight into the next wizard step.
   useEffect(() => {
-    const stored = sessionStorage.getItem(PENDING_CONNECTION_KEY)
-    if (!stored) return
-    sessionStorage.removeItem(PENDING_CONNECTION_KEY)
-    try {
-      const tokens = JSON.parse(stored)
-      setPendingTokens(tokens)
-      goToSelectBase(tokens.access_token)
-    } catch {
-      toast.error('Could not continue the Airtable connection. Please try again.')
+    const airtableStored = sessionStorage.getItem(AIRTABLE_PENDING_KEY)
+    if (airtableStored) {
+      sessionStorage.removeItem(AIRTABLE_PENDING_KEY)
+      try {
+        const tokens = JSON.parse(airtableStored)
+        setPendingTokens(tokens)
+        goToSelectBase(tokens.access_token)
+      } catch {
+        toast.error('Could not continue the Airtable connection. Please try again.')
+      }
+      return
+    }
+
+    const pinterestStored = sessionStorage.getItem(PINTEREST_PENDING_KEY)
+    if (pinterestStored) {
+      sessionStorage.removeItem(PINTEREST_PENDING_KEY)
+      try {
+        const tokens = JSON.parse(pinterestStored)
+        setPinterestPendingTokens(tokens)
+        goToSelectBoards(tokens.access_token, [])
+      } catch {
+        toast.error('Could not continue the Pinterest connection. Please try again.')
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -82,6 +121,11 @@ export default function ConnectionsPage() {
     setSampleRecord(null)
     setColumnMapping({ image: null, title: null, url: null })
     setUsingCachedSchema(false)
+    setPinterestPendingTokens(null)
+    setPinterestConnectionId(null)
+    setPinterestBoards([])
+    setPinterestBoardsError(null)
+    setSelectedBoardIds(new Set())
   }
 
   async function goToSelectBase(accessToken) {
@@ -98,7 +142,7 @@ export default function ConnectionsPage() {
     }
   }
 
-  async function handleAddConnection() {
+  async function handleAddAirtable() {
     try {
       await startAirtableOAuth()
     } catch {
@@ -110,7 +154,7 @@ export default function ConnectionsPage() {
   // AirtableCallbackPage reads the connection id back out after the redirect
   // and updates just the tokens — base/table/column_mapping are untouched,
   // so the user never re-does base/table selection.
-  async function handleReconnect(connection) {
+  async function handleReconnectAirtable(connection) {
     try {
       await startAirtableOAuth({ reconnectConnectionId: connection.id })
     } catch {
@@ -123,7 +167,7 @@ export default function ConnectionsPage() {
   // saved before cached_fields existed), the dropdowns just fall back to
   // showing the currently-mapped column names with no other options, until
   // Save re-fetches and refreshes the cache.
-  function handleRemap(connection) {
+  function handleRemapAirtable(connection) {
     setRemapConnectionId(connection.id)
     setPendingTokens({ access_token: connection.access_token, refresh_token: connection.refresh_token })
     setSelectedBase({ id: connection.base_id, name: connection.base_name })
@@ -209,6 +253,76 @@ export default function ConnectionsPage() {
     }
   }
 
+  async function handleAddPinterest() {
+    try {
+      await startPinterestOAuth()
+    } catch {
+      toast.error('Pinterest connection is not configured yet.')
+    }
+  }
+
+  // Fresh OAuth round-trip for a Pinterest connection stuck in "Reconnect
+  // needed". PinterestCallbackPage updates just the tokens — selected board
+  // ids are untouched, so the user never re-does board selection.
+  async function handleReconnectPinterest(connection) {
+    try {
+      await startPinterestOAuth({ reconnectConnectionId: connection.id })
+    } catch {
+      toast.error('Pinterest connection is not configured yet.')
+    }
+  }
+
+  async function goToSelectBoards(accessToken, preselected = []) {
+    setStep('selectBoards')
+    setSelectedBoardIds(new Set(preselected))
+    setPinterestBoardsLoading(true)
+    setPinterestBoardsError(null)
+    try {
+      const data = await listPinterestBoards(accessToken)
+      setPinterestBoards(data)
+    } catch (err) {
+      setPinterestBoardsError(err)
+    } finally {
+      setPinterestBoardsLoading(false)
+    }
+  }
+
+  // CB_09: "Board selection must be editable at any time from Settings →
+  // Integrations → Pinterest." Re-fetches the live board list with the
+  // connection's already-stored access token — board names are never cached
+  // (even locally), only ever fetched fresh per the Pinterest policy.
+  function handleManageBoards(connection) {
+    setPinterestConnectionId(connection.id)
+    setPinterestPendingTokens(null)
+    goToSelectBoards(connection.access_token, connection.config?.selected_board_ids ?? [])
+  }
+
+  function handleToggleBoard(boardId) {
+    setSelectedBoardIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(boardId)) next.delete(boardId)
+      else next.add(boardId)
+      return next
+    })
+  }
+
+  async function handleConfirmBoards() {
+    setBoardsSaving(true)
+    try {
+      await savePinterestConnection({
+        connectionId: pinterestConnectionId,
+        tokens: pinterestPendingTokens,
+        selectedBoardIds: Array.from(selectedBoardIds),
+      })
+      toast.success('Boards saved.')
+      resetWizard()
+    } catch {
+      toast.error('Could not save your board selection. Please try again.')
+    } finally {
+      setBoardsSaving(false)
+    }
+  }
+
   async function handleDisconnect() {
     if (!disconnectTarget) return
     try {
@@ -220,6 +334,8 @@ export default function ConnectionsPage() {
       setDisconnectTarget(null)
     }
   }
+
+  const stepTitle = step === 'list' ? 'Connections' : step === 'selectBoards' ? 'Pinterest Boards' : 'Add Connection'
 
   return (
     <>
@@ -234,9 +350,7 @@ export default function ConnectionsPage() {
               <ArrowLeft className="w-4 h-4" />
             </button>
           )}
-          <h1 className="text-xl font-bold tracking-tight">
-            {step === 'list' ? 'Connections' : 'Add Connection'}
-          </h1>
+          <h1 className="text-xl font-bold tracking-tight">{stepTitle}</h1>
         </div>
         <UserAvatar />
       </header>
@@ -246,10 +360,20 @@ export default function ConnectionsPage() {
           <ConnectionsList
             connections={connections}
             isLoading={isLoading}
-            onAdd={handleAddConnection}
-            onReconnect={handleReconnect}
-            onRemap={handleRemap}
+            onChooseSource={() => setStep('chooseSource')}
+            onReconnectAirtable={handleReconnectAirtable}
+            onRemapAirtable={handleRemapAirtable}
+            onReconnectPinterest={handleReconnectPinterest}
+            onManageBoards={handleManageBoards}
             onDisconnect={setDisconnectTarget}
+          />
+        )}
+
+        {step === 'chooseSource' && (
+          <SourceChooser
+            hasPinterestConnection={Boolean(pinterestConnection)}
+            onChooseAirtable={handleAddAirtable}
+            onChoosePinterest={handleAddPinterest}
           />
         )}
 
@@ -283,7 +407,22 @@ export default function ConnectionsPage() {
             onCancel={resetWizard}
             usingCachedSchema={usingCachedSchema}
             needsReconnect={remapConnection?.status === 'reconnect_required'}
-            onReconnect={() => remapConnection && handleReconnect(remapConnection)}
+            onReconnect={() => remapConnection && handleReconnectAirtable(remapConnection)}
+          />
+        )}
+
+        {step === 'selectBoards' && (
+          <BoardSelectionStep
+            boards={pinterestBoards}
+            loading={pinterestBoardsLoading}
+            error={pinterestBoardsError}
+            selectedBoardIds={selectedBoardIds}
+            onToggleBoard={handleToggleBoard}
+            saving={boardsSaving}
+            onConfirm={handleConfirmBoards}
+            onCancel={resetWizard}
+            needsReconnect={editingPinterestConnection?.status === 'reconnect_required'}
+            onReconnect={() => editingPinterestConnection && handleReconnectPinterest(editingPinterestConnection)}
           />
         )}
       </div>
@@ -293,8 +432,8 @@ export default function ConnectionsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Disconnect this source?</AlertDialogTitle>
             <AlertDialogDescription>
-              {disconnectTarget?.base_name} / {disconnectTarget?.table_name} will no longer appear in
-              For You. Cards already in your basket are unaffected.
+              {disconnectTarget && connectionLabel(disconnectTarget)} will no longer appear in For You. Cards
+              already in your basket are unaffected.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -307,7 +446,10 @@ export default function ConnectionsPage() {
   )
 }
 
-function ConnectionsList({ connections, isLoading, onAdd, onReconnect, onRemap, onDisconnect }) {
+function ConnectionsList({
+  connections, isLoading, onChooseSource, onReconnectAirtable, onRemapAirtable,
+  onReconnectPinterest, onManageBoards, onDisconnect,
+}) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
@@ -327,55 +469,74 @@ function ConnectionsList({ connections, isLoading, onAdd, onReconnect, onRemap, 
           <div>
             <p className="font-semibold text-base">No sources connected</p>
             <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed max-w-xs">
-              Connect an Airtable base to bring your own recipes into For You.
+              Connect Airtable or Pinterest to bring your own recipes into For You.
             </p>
           </div>
         </div>
       ) : (
         <div className="space-y-3">
-          {connections.map((c) => (
-            <div key={c.id} className="flex items-center gap-3 rounded-2xl border bg-card p-4">
-              <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center shrink-0">
-                <Database className="w-4 h-4 text-primary/60" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold leading-snug truncate">
-                  {c.base_name} / {c.table_name}
-                </p>
-                <div className="flex items-center gap-1.5 mt-1">
-                  {c.status === 'connected' ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+          {connections.map((c) => {
+            const isPinterest = c.source_type === 'pinterest'
+            const boardCount = isPinterest ? (c.config?.selected_board_ids?.length ?? 0) : null
+            return (
+              <div key={c.id} className="flex items-center gap-3 rounded-2xl border bg-card p-4">
+                <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+                  {isPinterest ? (
+                    <Pin className="w-4 h-4 text-primary/60" />
                   ) : (
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                    <Database className="w-4 h-4 text-primary/60" />
                   )}
-                  <span className="text-xs text-muted-foreground">
-                    {c.status === 'connected' ? 'Connected' : 'Reconnect needed'}
-                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold leading-snug truncate">
+                    {connectionLabel(c)}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    {c.status === 'connected' ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                    ) : (
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {c.status === 'connected' ? 'Connected' : 'Reconnect needed'}
+                      {isPinterest && c.status === 'connected' && (
+                        <> · {boardCount} board{boardCount !== 1 ? 's' : ''}</>
+                      )}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {c.status === 'reconnect_required' && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => (isPinterest ? onReconnectPinterest(c) : onReconnectAirtable(c))}
+                    >
+                      Reconnect
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => (isPinterest ? onManageBoards(c) : onRemapAirtable(c))}
+                  >
+                    {isPinterest ? 'Manage Boards' : 'Remap'}
+                  </Button>
+                  <button
+                    onClick={() => onDisconnect(c)}
+                    className="p-2 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    aria-label={`Disconnect ${connectionLabel(c)}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
-              <div className="flex items-center gap-1 shrink-0">
-                {c.status === 'reconnect_required' && (
-                  <Button variant="ghost" size="sm" onClick={() => onReconnect(c)}>
-                    Reconnect
-                  </Button>
-                )}
-                <Button variant="ghost" size="sm" onClick={() => onRemap(c)}>
-                  Remap
-                </Button>
-                <button
-                  onClick={() => onDisconnect(c)}
-                  className="p-2 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                  aria-label={`Disconnect ${c.base_name} / ${c.table_name}`}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
-      <Button onClick={onAdd} className="w-full gap-2">
+      <Button onClick={onChooseSource} className="w-full gap-2">
         <Plug className="w-4 h-4" />
         Add Connection
       </Button>
@@ -383,6 +544,46 @@ function ConnectionsList({ connections, isLoading, onAdd, onReconnect, onRemap, 
       <Button asChild variant="ghost" className="w-full text-muted-foreground">
         <Link to="/settings">Back to Settings</Link>
       </Button>
+    </div>
+  )
+}
+
+function SourceChooser({ hasPinterestConnection, onChooseAirtable, onChoosePinterest }) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium text-muted-foreground">What would you like to connect?</p>
+      <button
+        onClick={onChooseAirtable}
+        className="w-full flex items-center gap-3 rounded-2xl border bg-card p-4 text-left hover:bg-secondary/50 transition-colors"
+      >
+        <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+          <Database className="w-4 h-4 text-primary/60" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold">Airtable</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Bring in recipes from an Airtable base</p>
+        </div>
+        <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+      </button>
+
+      <button
+        onClick={onChoosePinterest}
+        disabled={hasPinterestConnection}
+        className="w-full flex items-center gap-3 rounded-2xl border bg-card p-4 text-left hover:bg-secondary/50 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+      >
+        <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+          <Pin className="w-4 h-4 text-primary/60" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold">Pinterest</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {hasPinterestConnection
+              ? 'Already connected — manage boards from Connections'
+              : 'Swipe through pins saved to your boards'}
+          </p>
+        </div>
+        <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+      </button>
     </div>
   )
 }
@@ -532,6 +733,89 @@ function MappingStep({
         <Button variant="outline" onClick={onCancel} className="flex-1">Cancel</Button>
         <Button onClick={onConfirm} disabled={!columnMapping.url || saving} className="flex-1">
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save connection'}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// CB_09: "multi-select checklist — same pattern as Dietary Preferences." Uses
+// checkbox rows (not Dietary Preferences' pill chips) since board lists can
+// run long and board names are unbounded length — the same list-row pattern
+// ForYouPage's filter drawer already uses for connected sources.
+function BoardSelectionStep({
+  boards, loading, error, selectedBoardIds, onToggleBoard, saving, onConfirm, onCancel,
+  needsReconnect = false, onReconnect,
+}) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
+        <Loader2 className="w-5 h-5 animate-spin" />
+        <span className="text-sm">Loading your boards…</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    const isAuthError = error?.status === 401 || error?.status === 403
+    return (
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 flex items-start gap-3">
+          <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium">Couldn't load your Pinterest boards</p>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+              {isAuthError
+                ? 'Your Pinterest connection needs to be refreshed.'
+                : 'Something went wrong talking to Pinterest. Please try again.'}
+            </p>
+            {isAuthError && needsReconnect && (
+              <Button variant="outline" size="sm" onClick={onReconnect} className="mt-3 gap-2">
+                <RefreshCw className="w-3.5 h-3.5" />
+                Reconnect Pinterest
+              </Button>
+            )}
+          </div>
+        </div>
+        <Button variant="outline" onClick={onCancel} className="w-full">Cancel</Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-5">
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        Select at least one board to pull recipe pins from. Only board selection is saved — board
+        names and pin counts are fetched fresh from Pinterest each time.
+      </p>
+
+      {boards.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-8 text-center">
+          No boards found on your Pinterest account.
+        </p>
+      ) : (
+        <div className="rounded-2xl border bg-card divide-y overflow-hidden">
+          {boards.map((board) => (
+            <label key={board.id} className="flex items-center gap-3 px-4 py-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selectedBoardIds.has(board.id)}
+                onChange={() => onToggleBoard(board.id)}
+                className="w-4 h-4 rounded border-input accent-primary shrink-0"
+              />
+              <span className="text-sm flex-1 min-w-0 truncate">{board.name}</span>
+              {typeof board.pin_count === 'number' && (
+                <span className="text-xs text-muted-foreground shrink-0">{board.pin_count} pins</span>
+              )}
+            </label>
+          ))}
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={onCancel} className="flex-1">Cancel</Button>
+        <Button onClick={onConfirm} disabled={selectedBoardIds.size === 0 || saving} className="flex-1">
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save boards'}
         </Button>
       </div>
     </div>

@@ -148,13 +148,21 @@ export async function fetchMealDetails(mealId, meal = null) {
     return details
   }
 
-  // Both url_import and airtable meals have no Spoonacular recipe ID to look
-  // up — their ingredients only exist at meal.destination_url, so both route
-  // through the same CB_10 extraction pipeline (/api/fetch-recipe).
-  if (meal?.source_type === 'url_import' || meal?.source_type === 'airtable') {
+  // url_import, airtable, and pinterest meals all have no Spoonacular recipe
+  // ID to look up — their ingredients only exist at meal.destination_url, so
+  // all three route through the same CB_10 extraction pipeline
+  // (/api/fetch-recipe). For pinterest this is also where CB_09's deferred
+  // extraction happens — pins are never sent through this path at swipe time.
+  if (meal?.source_type === 'url_import' || meal?.source_type === 'airtable' || meal?.source_type === 'pinterest') {
     const url = meal.destination_url || meal.destinationUrl || meal.url || null
     if (!url) {
-      throw new Error(`${meal.source_type === 'airtable' ? 'This recipe' : 'URL import'} is missing a destination URL`)
+      throw new Error(
+        meal.source_type === 'airtable'
+          ? 'This recipe is missing a destination URL'
+          : meal.source_type === 'pinterest'
+            ? 'This pin has no recipe link available'
+            : 'URL import is missing a destination URL'
+      )
     }
 
     console.log(`[spoonacular] ${meal.source_type} branch for`, mealId, 'url=', url)
@@ -184,7 +192,8 @@ export async function fetchMealDetails(mealId, meal = null) {
       return details
     } catch (err) {
       console.log(`[spoonacular] ${meal.source_type} fetch failed for`, mealId, err)
-      throw new Error(`${meal.source_type === 'airtable' ? 'Airtable' : 'URL import'} ingredients unavailable`)
+      const label = meal.source_type === 'airtable' ? 'Airtable' : meal.source_type === 'pinterest' ? 'Pinterest' : 'URL import'
+      throw new Error(`${label} ingredients unavailable`)
     }
   }
 

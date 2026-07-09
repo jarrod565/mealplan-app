@@ -16,6 +16,16 @@ const FEATURE_FLAGS = {
     difficulty: false,
     sourceFooter: true,
   },
+  pinterest: {
+    yes: true,
+    no: true,
+    never: false,
+    favorites: true,
+    ingredientsDrawer: false,
+    prepTime: false,
+    difficulty: false,
+    sourceFooter: true,
+  },
 }
 
 export function getSourceFeatureFlags(sourceType) {

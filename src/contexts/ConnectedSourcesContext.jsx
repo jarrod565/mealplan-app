@@ -112,6 +112,58 @@ export function ConnectedSourcesProvider({ children }) {
     return data
   }
 
+  // CB_09: Pinterest's only wizard step after OAuth is board selection — no
+  // base/table/column-mapping like Airtable. A subscription may hold at most
+  // one Pinterest connection (enforced by connected_sources_pinterest_key in
+  // migration 011), so this always upserts against that single row rather
+  // than inserting duplicates. tokens is omitted when only editing board
+  // selection on an already-connected source ("Board selection must be
+  // editable at any time from Settings → Integrations → Pinterest").
+  async function savePinterestConnection({ connectionId, tokens, selectedBoardIds }) {
+    if (!subscription?.id) throw new Error('No subscription — please sign out and sign back in.')
+
+    const record = {
+      subscription_id: subscription.id,
+      source_type: 'pinterest',
+      status: 'connected',
+      // CB_09 policy: only board IDs are ever persisted — names/counts are
+      // fetched fresh from the Pinterest API each session.
+      config: { selected_board_ids: selectedBoardIds ?? [] },
+      ...(tokens && {
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        ...(typeof tokens.expires_in === 'number' && {
+          token_expiry: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+        }),
+      }),
+    }
+
+    if (connectionId) {
+      const { data, error } = await supabase
+        .from('connected_sources')
+        .update(record)
+        .eq('id', connectionId)
+        .select()
+        .single()
+      if (error) throw error
+      setConnections((prev) => prev.map((c) => (c.id === connectionId ? data : c)))
+      return data
+    }
+
+    const { data, error } = await supabase
+      .from('connected_sources')
+      .insert(record)
+      .select()
+      .single()
+    if (error) throw error
+    setConnections((prev) => [...prev, data])
+    // New connections default to active, same as saveConnection — CB_09's
+    // example workflow has the For You nav item become active immediately
+    // once boards are selected, no extra trip required.
+    await setActiveSourceIds([...activeSourceIds, data.id])
+    return data
+  }
+
   async function disconnectSource(connectionId) {
     await supabase.from('connected_sources').delete().eq('id', connectionId)
     setConnections((prev) => prev.filter((c) => c.id !== connectionId))
@@ -161,6 +213,7 @@ export function ConnectedSourcesProvider({ children }) {
         isLoading,
         refresh,
         saveConnection,
+        savePinterestConnection,
         disconnectSource,
         updateConnectionTokens,
         markReconnectRequired,

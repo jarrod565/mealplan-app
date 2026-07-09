@@ -12,6 +12,7 @@ import IngredientsPage from '@/pages/IngredientsPage'
 import ShoppingListPage from '@/pages/ShoppingListPage'
 import HistoryPage from '@/pages/HistoryPage'
 import AirtableCallbackPage from '@/pages/AirtableCallbackPage'
+import PinterestCallbackPage from '@/pages/PinterestCallbackPage'
 import ConnectionsPage from '@/pages/ConnectionsPage'
 import ForYouPage from '@/pages/ForYouPage'
 import PrivacyPage from '@/pages/PrivacyPage'
@@ -48,6 +49,7 @@ export const router = createBrowserRouter([
       { path: 'history', element: <HistoryPage />, errorElement: <RouteErrorBoundary /> },
       { path: 'settings/connections', element: <ConnectionsPage />, errorElement: <RouteErrorBoundary /> },
       { path: 'settings/connections/airtable/callback', element: <AirtableCallbackPage />, errorElement: <RouteErrorBoundary /> },
+      { path: 'settings/connections/pinterest/callback', element: <PinterestCallbackPage />, errorElement: <RouteErrorBoundary /> },
     ],
   },
   {
