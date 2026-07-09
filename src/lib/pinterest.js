@@ -13,7 +13,10 @@
 import { supabase } from '@/lib/supabase'
 
 const PINTEREST_AUTHORIZE_URL = 'https://www.pinterest.com/oauth/'
-const PINTEREST_API_BASE = 'https://api.pinterest.com/v5'
+// Board/pin reads route through this same-origin proxy (api/pinterest.js)
+// rather than calling api.pinterest.com directly — Pinterest's v5 API sends
+// no CORS headers, so a direct browser fetch() is blocked outright.
+const PINTEREST_PROXY_PATH = '/api/pinterest'
 // Pinterest's v5 authorize endpoint expects a comma-separated scope list.
 const SCOPES = 'boards:read,pins:read,user_accounts:read'
 const REDIRECT_PATH = '/settings/connections/pinterest/callback'
@@ -113,25 +116,21 @@ export async function refreshPinterestToken(refreshTokenValue) {
 }
 
 async function pinterestFetch(accessToken, path, params) {
-  const url = new URL(`${PINTEREST_API_BASE}${path}`)
-  if (params) {
-    for (const [key, value] of Object.entries(params)) {
-      if (value != null) url.searchParams.set(key, value)
-    }
-  }
-
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+  const response = await fetch(PINTEREST_PROXY_PATH, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: accessToken, path, params }),
   })
 
+  const body = await response.json().catch(() => null)
+
   if (!response.ok) {
-    const body = await response.json().catch(() => null)
     const error = new Error(body?.message || `Pinterest API error ${response.status}`)
     error.status = response.status
     throw error
   }
 
-  return response.json()
+  return body
 }
 
 // Board id/name/pin_count — display-only, held in React state by the caller.
