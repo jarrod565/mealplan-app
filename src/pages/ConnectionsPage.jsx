@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useConnectedSources } from '@/contexts/ConnectedSourcesContext'
 import { startAirtableOAuth, listAirtableBases, listAirtableTables, listAirtableRecords } from '@/lib/airtable'
@@ -37,6 +37,8 @@ export default function ConnectionsPage() {
   const {
     connections, isLoading, disconnectSource, saveConnection, savePinterestConnection, markReconnectRequired,
   } = useConnectedSources()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const consumedEditParamRef = useRef(false)
 
   // Wizard state — 'list' is the default Settings → Connections view. The
   // rest are steps in the "Add Connection" flow: 'chooseSource' picks
@@ -296,6 +298,30 @@ export default function ConnectionsPage() {
     setPinterestPendingTokens(null)
     goToSelectBoards(connection.access_token, connection.config?.selected_board_ids ?? [])
   }
+
+  // Settings page's Connections table deep-links its edit icon here as
+  // /settings/connections?connectionId=<id> — jump straight into that
+  // connection's edit step instead of landing on the plain list. Waits for
+  // `connections` to finish loading (async on mount) before looking the id
+  // up, and only ever consumes the param once so resetting the wizard back
+  // to 'list' doesn't re-trigger it.
+  useEffect(() => {
+    if (consumedEditParamRef.current) return
+    const editId = searchParams.get('connectionId')
+    if (!editId || isLoading) return
+
+    consumedEditParamRef.current = true
+    const target = connections.find((c) => c.id === editId)
+    if (target) {
+      if (target.source_type === 'pinterest') {
+        handleManageBoards(target)
+      } else {
+        handleRemapAirtable(target)
+      }
+    }
+    setSearchParams({}, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connections, isLoading, searchParams])
 
   function handleToggleBoard(boardId) {
     setSelectedBoardIds((prev) => {

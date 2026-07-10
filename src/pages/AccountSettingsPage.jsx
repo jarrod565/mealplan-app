@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useTheme } from 'next-themes'
 import { useAuth } from '@/contexts/AuthContext'
 import { useConnectedSources } from '@/contexts/ConnectedSourcesContext'
@@ -22,7 +22,10 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { ChevronRight, Crown, EyeOff, LogIn, LogOut, Monitor, Moon, Plug, Sun, Users, Webhook, Zap } from 'lucide-react'
+import {
+  ChevronRight, Crown, EyeOff, LogIn, LogOut, Monitor, Moon, Pencil,
+  Plug, Sun, Trash2, Users, Zap,
+} from 'lucide-react'
 import { stripePromise } from '@/lib/stripe'
 import { supabase } from '@/lib/supabase'
 import UserAvatar from '@/components/layout/UserAvatar'
@@ -33,10 +36,118 @@ const THEME_OPTIONS = [
   { value: 'dark',   label: 'Dark',   Icon: Moon },
 ]
 
+// Pinterest connections have no base_name/table_name — board names are
+// session-only (CB_09 policy) and come from ConnectedSourcesContext's
+// pinterestBoardNames instead. The Type column already says "Pinterest", so
+// this just lists the board name(s), unlike ForYouPage's filter-drawer label
+// which prefixes "Pinterest / ".
+function pinterestBoardsLabel(connection, boardNames) {
+  const boardIds = connection.config?.selected_board_ids ?? []
+  const names = boardIds.map((id) => boardNames?.[id]).filter(Boolean)
+  return names.length > 0 ? names.join(', ') : 'No boards selected'
+}
+
+// Inline table replacing the old "Manage connections" link-out card.
+// Delete uses an inline "Are you sure?" row swap rather than a modal, per
+// spec — deliberately lighter-weight than the AlertDialog confirmation used
+// for Sign Out below.
+function ConnectionsTable({ connections, pinterestBoardNames, onEdit, onDisconnect }) {
+  const [confirmingId, setConfirmingId] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
+
+  async function handleConfirmDelete(connection) {
+    setDeletingId(connection.id)
+    try {
+      await onDisconnect(connection.id)
+      toast.success('Disconnected.')
+    } catch {
+      toast.error('Could not disconnect. Please try again.')
+    } finally {
+      setDeletingId(null)
+      setConfirmingId(null)
+    }
+  }
+
+  if (connections.length === 0) {
+    return <p className="text-sm text-muted-foreground text-center py-6">No connections yet</p>
+  }
+
+  return (
+    <div className="rounded-xl border overflow-hidden">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b bg-secondary/40 text-left text-xs text-muted-foreground uppercase tracking-wide">
+            <th className="px-3 py-2 font-medium">Type</th>
+            <th className="px-3 py-2 font-medium">Name</th>
+            <th className="px-3 py-2 font-medium text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {connections.map((c) => {
+            const isPinterest = c.source_type === 'pinterest'
+            const name = isPinterest
+              ? pinterestBoardsLabel(c, pinterestBoardNames[c.id])
+              : `${c.base_name} / ${c.table_name}`
+            const isConfirming = confirmingId === c.id
+
+            return (
+              <tr key={c.id}>
+                <td className="px-3 py-2.5 align-middle whitespace-nowrap">
+                  {isPinterest ? 'Pinterest' : 'Airtable'}
+                </td>
+                <td className="px-3 py-2.5 align-middle truncate max-w-[160px]">{name}</td>
+                <td className="px-3 py-2.5 align-middle text-right">
+                  {isConfirming ? (
+                    <div className="flex items-center justify-end gap-2">
+                      <span className="text-xs text-muted-foreground">Are you sure?</span>
+                      <button
+                        onClick={() => handleConfirmDelete(c)}
+                        disabled={deletingId === c.id}
+                        className="text-xs font-medium text-destructive hover:underline disabled:opacity-50"
+                      >
+                        {deletingId === c.id ? 'Removing…' : 'Confirm'}
+                      </button>
+                      <button
+                        onClick={() => setConfirmingId(null)}
+                        disabled={deletingId === c.id}
+                        className="text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => onEdit(c)}
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                        aria-label={`Edit ${name}`}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setConfirmingId(c.id)}
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        aria-label={`Disconnect ${name}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 export default function AccountSettingsPage() {
-  const { user, subscription, subscriptionTier, isPremium, isGuest, signOut, updateSubscription } = useAuth()
-  const { connections } = useConnectedSources()
+  const { user, subscription, isPremium, isGuest, signOut, updateSubscription } = useAuth()
+  const { connections, pinterestBoardNames, disconnectSource } = useConnectedSources()
   const { theme, setTheme } = useTheme()
+  const navigate = useNavigate()
   const [servingSize, setServingSize] = useState(
     String(subscription?.default_serving_size ?? 2)
   )
@@ -100,6 +211,10 @@ export default function AccountSettingsPage() {
     window.location.href = '/sign-in'
   }
 
+  function handleEditConnection(connection) {
+    navigate(`/settings/connections?connectionId=${connection.id}`)
+  }
+
   return (
     <>
       <header className="flex items-center justify-between px-5 py-4 border-b bg-background/95 backdrop-blur-sm sticky top-0 z-10">
@@ -132,35 +247,104 @@ export default function AccountSettingsPage() {
         </Card>
       )}
 
-      {/* Appearance */}
+      {/* Dietary Preferences link */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <CardTitle className="text-base">Dietary Preferences</CardTitle>
+              <CardDescription className="mt-1">
+                Filter the meal discovery experience by dietary restrictions.
+              </CardDescription>
+            </div>
+            {(subscription?.dietary_restrictions?.length ?? 0) > 0 && (
+              <Badge variant="secondary" className="shrink-0">
+                {subscription.dietary_restrictions.length} active
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" className="w-full" asChild>
+            <Link to="/settings/dietary">Manage dietary restrictions</Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Household preferences */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <Sun className="w-4 h-4" />
-            Appearance
+            <Users className="w-4 h-4" />
+            Household
           </CardTitle>
-          <CardDescription>Choose your preferred colour scheme.</CardDescription>
+          <CardDescription>
+            Applied when calculating ingredient quantities for your shopping list.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="inline-flex w-full rounded-xl border overflow-hidden">
-            {THEME_OPTIONS.map(({ value, label, Icon }) => (
-              <button
-                key={value}
-                onClick={() => handleThemeChange(value)}
-                className={cn(
-                  'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors',
-                  (theme ?? 'system') === value
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-background text-muted-foreground hover:text-foreground hover:bg-secondary'
-                )}
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="serving-size">Default serving size (people)</Label>
+            <div className="flex gap-2">
+              <Input
+                id="serving-size"
+                type="number"
+                min="1"
+                max="20"
+                value={servingSize}
+                onChange={(e) => setServingSize(e.target.value)}
+                className="w-24"
+              />
+              <Button
+                variant="outline"
+                onClick={handleSaveServingSize}
+                disabled={savingSize}
               >
-                <Icon className="w-4 h-4" />
-                {label}
-              </button>
-            ))}
+                {savingSize ? 'Saving…' : 'Save'}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Connections (CB_09/CB_12) — inline table, edit/delete per row */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Plug className="w-4 h-4" />
+            Connections
+          </CardTitle>
+          <CardDescription>
+            Bring your own recipes into For You from Airtable and other sources.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ConnectionsTable
+            connections={connections}
+            pinterestBoardNames={pinterestBoardNames}
+            onEdit={handleEditConnection}
+            onDisconnect={disconnectSource}
+          />
+          <Button variant="outline" className="w-full mt-4" asChild>
+            <Link to="/settings/connections">
+              <Plug className="w-4 h-4 mr-2" />
+              Add Connection
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* CB_11: Hidden's nav entry lives here — the screen itself is unchanged */}
+      <Link
+        to="/hidden"
+        className="flex items-center justify-between px-1 py-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <span className="flex items-center gap-2">
+          <EyeOff className="w-4 h-4" />
+          Hidden Meals
+        </span>
+        <ChevronRight className="w-4 h-4" />
+      </Link>
 
       {/* Subscription */}
       <Card>
@@ -205,94 +389,38 @@ export default function AccountSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Household preferences */}
+      {/* Appearance */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <Users className="w-4 h-4" />
-            Household
+            <Sun className="w-4 h-4" />
+            Appearance
           </CardTitle>
-          <CardDescription>
-            Applied when calculating ingredient quantities for your shopping list.
-          </CardDescription>
+          <CardDescription>Choose your preferred colour scheme.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="serving-size">Default serving size (people)</Label>
-            <div className="flex gap-2">
-              <Input
-                id="serving-size"
-                type="number"
-                min="1"
-                max="20"
-                value={servingSize}
-                onChange={(e) => setServingSize(e.target.value)}
-                className="w-24"
-              />
-              <Button
-                variant="outline"
-                onClick={handleSaveServingSize}
-                disabled={savingSize}
+        <CardContent>
+          <div className="inline-flex w-full rounded-xl border overflow-hidden">
+            {THEME_OPTIONS.map(({ value, label, Icon }) => (
+              <button
+                key={value}
+                onClick={() => handleThemeChange(value)}
+                className={cn(
+                  'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors',
+                  (theme ?? 'system') === value
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-background text-muted-foreground hover:text-foreground hover:bg-secondary'
+                )}
               >
-                {savingSize ? 'Saving…' : 'Save'}
-              </Button>
-            </div>
+                <Icon className="w-4 h-4" />
+                {label}
+              </button>
+            ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Dietary Preferences link */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <CardTitle className="text-base">Dietary Preferences</CardTitle>
-              <CardDescription className="mt-1">
-                Filter the meal discovery experience by dietary restrictions.
-              </CardDescription>
-            </div>
-            {(subscription?.dietary_restrictions?.length ?? 0) > 0 && (
-              <Badge variant="secondary" className="shrink-0">
-                {subscription.dietary_restrictions.length} active
-              </Badge>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Button variant="outline" className="w-full" asChild>
-            <Link to="/settings/dietary">Manage dietary restrictions</Link>
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Connections (CB_12) — Airtable v1, generic Connected Sources framework */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Plug className="w-4 h-4" />
-                Connections
-              </CardTitle>
-              <CardDescription className="mt-1">
-                Bring your own recipes into For You from Airtable and other sources.
-              </CardDescription>
-            </div>
-            {connections.length > 0 && (
-              <Badge variant="secondary" className="shrink-0">
-                {connections.length} connected
-              </Badge>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Button variant="outline" className="w-full" asChild>
-            <Link to="/settings/connections">Manage connections</Link>
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Future webhooks placeholder */}
+      {/* Webhooks — temporarily hidden (not yet built); intentionally kept
+          in place, not deleted, for when this ships.
       <Card className="opacity-60">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -310,6 +438,7 @@ export default function AccountSettingsPage() {
           </p>
         </CardContent>
       </Card>
+      */}
 
       {/* Sign out / Exit guest mode */}
       <Separator />
@@ -338,20 +467,6 @@ export default function AccountSettingsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* CB_11: Hidden's nav entry moved here — the screen itself is unchanged */}
-      <Separator />
-
-      <Link
-        to="/hidden"
-        className="flex items-center justify-between px-1 py-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <span className="flex items-center gap-2">
-          <EyeOff className="w-4 h-4" />
-          Hidden Meals
-        </span>
-        <ChevronRight className="w-4 h-4" />
-      </Link>
     </div>
     </>
   )
