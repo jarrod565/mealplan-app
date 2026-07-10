@@ -62,9 +62,9 @@ export default function PlanPage() {
     // Subtract bottom nav height (4rem = 64px) on mobile so content never hides behind it
     <div className="flex flex-col h-[calc(100svh-4rem)] md:h-screen">
 
-      {/* Header — no basket icon, only filter indicator + avatar */}
+      {/* Header — filter indicator + avatar (avatar cluster includes the basket icon) */}
       <header className="flex items-center justify-between px-5 py-4 border-b shrink-0 bg-background/95 backdrop-blur-sm">
-        <h1 className="text-xl font-bold tracking-tight">Plan</h1>
+        <h1 className="text-xl font-bold tracking-tight">Explore</h1>
         <div className="flex items-center gap-2.5">
           <ActiveFilterIndicator />
           <UserAvatar />

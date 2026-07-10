@@ -34,7 +34,7 @@ export default function RouteErrorBoundary() {
           Reload
         </Button>
         <Button onClick={() => navigate('/plan', { replace: true })}>
-          Go to Plan
+          Go to Explore
         </Button>
       </div>
     </div>

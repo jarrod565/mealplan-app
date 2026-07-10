@@ -101,7 +101,7 @@ export default function ShoppingListPage() {
             </p>
           </div>
           <Button asChild variant="outline">
-            <Link to="/plan">Go to Plan</Link>
+            <Link to="/plan">Go to Explore</Link>
           </Button>
         </div>
       </>

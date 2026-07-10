@@ -1,21 +1,21 @@
 import { NavLink } from 'react-router-dom'
-import { CalendarDays, ShoppingBasket, ShoppingCart, History, Heart, Sparkles } from 'lucide-react'
-import { useBasket } from '@/contexts/BasketContext'
+import { CalendarDays, ShoppingCart, History, Heart, Sparkles } from 'lucide-react'
 import { useConnectedSources } from '@/contexts/ConnectedSourcesContext'
 import { cn } from '@/lib/utils'
 
 export default function Sidebar() {
-  const { basketCount } = useBasket()
   const { connections } = useConnectedSources()
 
+  // CB_09 nav restructure: "Plan" renamed to "Explore"; Basket moved out of
+  // the nav entirely and into the top header (see UserAvatar.jsx) — it's no
+  // longer a destination here.
   const NAV_ITEMS = [
-    { to: '/plan',          label: 'Plan',      Icon: CalendarDays,   badge: null },
+    { to: '/plan',          label: 'Explore',   Icon: CalendarDays,   badge: null },
     // CB_12: nav item appears once any source is connected — generic across
     // Airtable today and future sources (e.g. Pinterest), not source-specific.
     ...(connections.length > 0
       ? [{ to: '/for-you', label: 'For You', Icon: Sparkles, badge: null }]
       : []),
-    { to: '/basket',        label: 'Basket',    Icon: ShoppingBasket, badge: basketCount || null },
     { to: '/shopping-list', label: 'List',      Icon: ShoppingCart,   badge: null },
     { to: '/history',       label: 'History',   Icon: History,        badge: null },
     { to: '/favorites',     label: 'Favorites', Icon: Heart,          badge: null },

@@ -168,7 +168,7 @@ function NoConnectionsEmptyState() {
         <p className="font-semibold text-base">For You is where your own recipes live</p>
         <p className="text-sm text-muted-foreground leading-relaxed">
           Connect a source like Airtable and your saved recipes will show up here as swipeable
-          cards, right alongside Plan.
+          cards, right alongside Explore.
         </p>
       </div>
       <Button asChild className="w-full gap-2 max-w-xs">
