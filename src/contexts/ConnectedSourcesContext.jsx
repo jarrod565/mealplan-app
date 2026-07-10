@@ -21,9 +21,17 @@ export function ConnectedSourcesProvider({ children }) {
   const [pinterestBoardNames, setPinterestBoardNames] = useState({})
 
   const activeSourceIds = subscription?.active_connected_source_ids ?? []
+  // Board-level equivalent of activeSourceIds, for Pinterest — a single
+  // Pinterest connection can have many selected boards, and the filter
+  // drawer toggles boards individually rather than the whole connection.
+  const activePinterestBoardIds = subscription?.active_pinterest_board_ids ?? []
 
   function isSourceActive(connectionId) {
     return activeSourceIds.includes(connectionId)
+  }
+
+  function isBoardActive(boardId) {
+    return activePinterestBoardIds.includes(boardId)
   }
 
   // CB_12: "Filter selections persist across sessions (saved to Supabase on
@@ -32,11 +40,22 @@ export function ConnectedSourcesProvider({ children }) {
     await updateSubscription({ active_connected_source_ids: ids })
   }
 
+  async function setActivePinterestBoardIds(ids) {
+    await updateSubscription({ active_pinterest_board_ids: ids })
+  }
+
   async function toggleSourceActive(connectionId) {
     const next = isSourceActive(connectionId)
       ? activeSourceIds.filter((id) => id !== connectionId)
       : [...activeSourceIds, connectionId]
     await setActiveSourceIds(next)
+  }
+
+  async function toggleBoardActive(boardId) {
+    const next = isBoardActive(boardId)
+      ? activePinterestBoardIds.filter((id) => id !== boardId)
+      : [...activePinterestBoardIds, boardId]
+    await setActivePinterestBoardIds(next)
   }
 
   async function refresh() {
@@ -158,13 +177,14 @@ export function ConnectedSourcesProvider({ children }) {
   async function savePinterestConnection({ connectionId, tokens, selectedBoardIds }) {
     if (!subscription?.id) throw new Error('No subscription — please sign out and sign back in.')
 
+    const newBoardIds = selectedBoardIds ?? []
     const record = {
       subscription_id: subscription.id,
       source_type: 'pinterest',
       status: 'connected',
       // CB_09 policy: only board IDs are ever persisted — names/counts are
       // fetched fresh from the Pinterest API each session.
-      config: { selected_board_ids: selectedBoardIds ?? [] },
+      config: { selected_board_ids: newBoardIds },
       ...(tokens && {
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
@@ -175,6 +195,9 @@ export function ConnectedSourcesProvider({ children }) {
     }
 
     if (connectionId) {
+      const existing = connections.find((c) => c.id === connectionId)
+      const oldBoardIds = existing?.config?.selected_board_ids ?? []
+
       const { data, error } = await supabase
         .from('connected_sources')
         .update(record)
@@ -183,6 +206,21 @@ export function ConnectedSourcesProvider({ children }) {
         .single()
       if (error) throw error
       setConnections((prev) => prev.map((c) => (c.id === connectionId ? data : c)))
+
+      // Newly selected boards default to active (same "just connected, show
+      // up active" precedent as a brand new connection); boards no longer
+      // selected are dropped so the active list doesn't accumulate ids for
+      // boards that can never be fetched again. Boards that stay selected
+      // keep whatever active state the user already gave them.
+      const removedBoardIds = oldBoardIds.filter((id) => !newBoardIds.includes(id))
+      const addedBoardIds = newBoardIds.filter((id) => !oldBoardIds.includes(id))
+      if (removedBoardIds.length > 0 || addedBoardIds.length > 0) {
+        const next = [
+          ...activePinterestBoardIds.filter((id) => !removedBoardIds.includes(id)),
+          ...addedBoardIds,
+        ]
+        await setActivePinterestBoardIds([...new Set(next)])
+      }
       return data
     }
 
@@ -195,16 +233,27 @@ export function ConnectedSourcesProvider({ children }) {
     setConnections((prev) => [...prev, data])
     // New connections default to active, same as saveConnection — CB_09's
     // example workflow has the For You nav item become active immediately
-    // once boards are selected, no extra trip required.
-    await setActiveSourceIds([...activeSourceIds, data.id])
+    // once boards are selected, no extra trip required. Board-level (not
+    // connection-level) since that's what governs Pinterest activity now.
+    await setActivePinterestBoardIds([...new Set([...activePinterestBoardIds, ...newBoardIds])])
     return data
   }
 
   async function disconnectSource(connectionId) {
+    const target = connections.find((c) => c.id === connectionId)
     await supabase.from('connected_sources').delete().eq('id', connectionId)
     setConnections((prev) => prev.filter((c) => c.id !== connectionId))
     if (isSourceActive(connectionId)) {
       await setActiveSourceIds(activeSourceIds.filter((id) => id !== connectionId))
+    }
+    // Board ids only ever mean something in the context of the connection
+    // they came from — clean them out of the active list rather than
+    // leaving them to linger forever once that connection is gone.
+    if (target?.source_type === 'pinterest') {
+      const boardIds = target.config?.selected_board_ids ?? []
+      if (boardIds.length > 0) {
+        await setActivePinterestBoardIds(activePinterestBoardIds.filter((id) => !boardIds.includes(id)))
+      }
     }
   }
 
@@ -257,6 +306,9 @@ export function ConnectedSourcesProvider({ children }) {
         activeSourceIds,
         isSourceActive,
         toggleSourceActive,
+        activePinterestBoardIds,
+        isBoardActive,
+        toggleBoardActive,
       }}
     >
       {children}

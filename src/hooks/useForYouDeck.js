@@ -105,7 +105,7 @@ export function useForYouDeck() {
   const { addToBasket, isInBasket } = useBasket()
   const { isFavorited, toggleFavorite } = useFavorites()
   const {
-    connections, activeSourceIds, updateConnectionTokens, markReconnectRequired,
+    connections, activeSourceIds, activePinterestBoardIds, updateConnectionTokens, markReconnectRequired,
   } = useConnectedSources()
 
   const [deck, setDeck] = useState([])
@@ -121,9 +121,19 @@ export function useForYouDeck() {
   const isLoadingMoreRef = useRef(false) // guards overlapping background top-ups
   const consecutiveEmptyRef = useRef(0)
 
-  const activeConnections = connections.filter(
-    (c) => activeSourceIds.includes(c.id) && c.status === 'connected'
-  )
+  // Airtable stays connection-level (activeSourceIds); Pinterest is
+  // board-level now — a Pinterest connection only counts as active if at
+  // least one of its selected boards is toggled on (activePinterestBoardIds).
+  // A connection with zero active boards is treated as fully inactive, per
+  // CB_09's filter drawer spec.
+  const activeConnections = connections.filter((c) => {
+    if (c.status !== 'connected') return false
+    if (c.source_type === 'pinterest') {
+      const boardIds = c.config?.selected_board_ids ?? []
+      return boardIds.some((id) => activePinterestBoardIds.includes(id))
+    }
+    return activeSourceIds.includes(c.id)
+  })
 
   // CB_09: refresh any connection whose token is expired or about to expire
   // before making any source API calls. Failures drop that source from this
@@ -168,11 +178,14 @@ export function useForYouDeck() {
       .filter((card) => !noPile.has(card.meal_id) && !isInBasket(card.meal_id))
   }
 
-  // One random-slice attempt across this connection's selected boards. Board
-  // *order* is reshuffled every call too, so repeated fetches don't always
-  // favor whichever board happens to be first in selected_board_ids.
+  // One random-slice attempt across this connection's active boards (not
+  // every selected board — a board can be selected but toggled off in the
+  // filter drawer, per CB_09's board-level activation). Board *order* is
+  // reshuffled every call too, so repeated fetches don't always favor
+  // whichever board happens to be first.
   async function fetchPinterestCards(connection, noPile) {
-    const boardIds = connection.config?.selected_board_ids ?? []
+    const boardIds = (connection.config?.selected_board_ids ?? [])
+      .filter((id) => activePinterestBoardIds.includes(id))
     if (boardIds.length === 0) return []
 
     let boardNameById = pinterestBoardNamesRef.current[connection.id]
@@ -261,8 +274,13 @@ export function useForYouDeck() {
       setErrorMessage(err?.message ?? null)
       setStatus('error')
     }
+    // activePinterestBoardIds is a separate dependency from the connection-id
+    // list above: a Pinterest connection can stay "active" overall (still
+    // has >=1 active board) while which specific boards are active changes —
+    // that wouldn't change activeConnections' set of ids, so without this,
+    // loadBatch would keep a stale closure over the old board selection.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(activeConnections.map((c) => c.id))])
+  }, [JSON.stringify(activeConnections.map((c) => c.id)), JSON.stringify(activePinterestBoardIds)])
 
   // Background top-up — fetches a fresh random slice per source and appends
   // to the existing deck, without touching status/noPileRef the way

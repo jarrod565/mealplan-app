@@ -7,24 +7,14 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Sheet, SheetContent, SheetTitle, SheetClose } from '@/components/ui/sheet'
 import {
-  Sparkles, Plug, Loader2, SlidersHorizontal, X, ChevronRight, RotateCcw,
+  Sparkles, Plug, Loader2, SlidersHorizontal, X, RotateCcw,
 } from 'lucide-react'
 import UserAvatar from '@/components/layout/UserAvatar'
 
-// Pinterest connections have no base_name/table_name (Airtable-shaped
-// columns) — board names are session-only (CB_09 policy) and come from
-// ConnectedSourcesContext's pinterestBoardNames instead. Falls back to a
-// bare "Pinterest" while names haven't arrived yet or a board was deselected
-// out from under a stale name map, rather than showing a blank segment.
-function pinterestFilterLabel(connection, boardNames) {
-  const boardIds = connection.config?.selected_board_ids ?? []
-  const names = boardIds.map((id) => boardNames?.[id]).filter(Boolean)
-  return names.length > 0 ? `Pinterest / ${names.join(', ')}` : 'Pinterest'
-}
-
 export default function ForYouPage() {
   const {
-    connections, isLoading, isSourceActive, toggleSourceActive, activeSourceIds, pinterestBoardNames,
+    connections, isLoading, isSourceActive, toggleSourceActive, activeSourceIds,
+    isBoardActive, toggleBoardActive, activePinterestBoardIds, pinterestBoardNames,
   } = useConnectedSources()
   const hasConnections = connections.length > 0
   const [filterOpen, setFilterOpen] = useState(false)
@@ -37,13 +27,14 @@ export default function ForYouPage() {
   // Loads a batch once connections have resolved and at least one source is
   // active, and again immediately any time the active-source set changes —
   // toggling a filter reloads the deck right away instead of waiting for the
-  // user to close the drawer and tap Start Over. activeSourceIds (not
-  // hasActiveSources) is the dependency that actually changes on a toggle
-  // between two already-active sources, so it has to be watched directly.
+  // user to close the drawer and tap Start Over. activeSourceIds/
+  // activePinterestBoardIds (not hasActiveSources) are the dependencies that
+  // actually change on a toggle between two already-active sources or boards,
+  // so they have to be watched directly.
   useEffect(() => {
     if (!isLoading && hasActiveSources) loadBatch()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, hasActiveSources, JSON.stringify(activeSourceIds)])
+  }, [isLoading, hasActiveSources, JSON.stringify(activeSourceIds), JSON.stringify(activePinterestBoardIds)])
 
   return (
     // Same shell as PlanPage — subtract bottom nav height (4rem) on mobile so
@@ -135,37 +126,58 @@ export default function ForYouPage() {
 
           <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
             <SheetTitle className="text-base font-semibold">Filter sources</SheetTitle>
-            <SheetClose className="p-1.5 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors shrink-0">
-              <X className="w-4 h-4" />
-              <span className="sr-only">Close</span>
-            </SheetClose>
+            <div className="flex items-center gap-1 shrink-0">
+              <Link
+                to="/settings"
+                onClick={() => setFilterOpen(false)}
+                className="text-sm font-medium text-primary hover:underline px-1.5"
+              >
+                Manage
+              </Link>
+              <SheetClose className="p-1.5 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors shrink-0">
+                <X className="w-4 h-4" />
+                <span className="sr-only">Close</span>
+              </SheetClose>
+            </div>
           </div>
 
           <div className="px-5 py-2">
-            {connections.map((c) => (
-              <label key={c.id} className="flex items-center gap-3 py-2.5 cursor-pointer">
-                <span className="text-sm flex-1 min-w-0 truncate">
-                  {c.source_type === 'pinterest'
-                    ? pinterestFilterLabel(c, pinterestBoardNames[c.id])
-                    : `${c.base_name} / ${c.table_name}`}
-                </span>
-                <Switch
-                  checked={isSourceActive(c.id)}
-                  onCheckedChange={() => toggleSourceActive(c.id)}
-                />
-              </label>
-            ))}
-          </div>
+            {connections.flatMap((c) => {
+              // Airtable: one toggle row per connection, unchanged.
+              if (c.source_type !== 'pinterest') {
+                return (
+                  <label key={c.id} className="flex items-center gap-3 py-2.5 cursor-pointer">
+                    <span className="text-sm flex-1 min-w-0 truncate">
+                      {c.base_name} / {c.table_name}
+                    </span>
+                    <Switch
+                      checked={isSourceActive(c.id)}
+                      onCheckedChange={() => toggleSourceActive(c.id)}
+                    />
+                  </label>
+                )
+              }
 
-          <div className="px-5 py-3 border-t">
-            <Link
-              to="/settings/connections"
-              onClick={() => setFilterOpen(false)}
-              className="flex items-center justify-between text-sm text-muted-foreground hover:text-foreground transition-colors py-1"
-            >
-              Manage Connections
-              <ChevronRight className="w-4 h-4" />
-            </Link>
+              // Pinterest: one toggle row per selected board rather than one
+              // for the whole connection — board names are session-only
+              // (CB_09 policy), read from ConnectedSourcesContext's
+              // pinterestBoardNames rather than persisted anywhere.
+              const boardIds = c.config?.selected_board_ids ?? []
+              return boardIds.map((boardId) => {
+                const boardName = pinterestBoardNames[c.id]?.[boardId]
+                return (
+                  <label key={`${c.id}:${boardId}`} className="flex items-center gap-3 py-2.5 cursor-pointer">
+                    <span className="text-sm flex-1 min-w-0 truncate">
+                      Pinterest / {boardName ?? 'Loading…'}
+                    </span>
+                    <Switch
+                      checked={isBoardActive(boardId)}
+                      onCheckedChange={() => toggleBoardActive(boardId)}
+                    />
+                  </label>
+                )
+              })
+            })}
           </div>
         </SheetContent>
       </Sheet>
