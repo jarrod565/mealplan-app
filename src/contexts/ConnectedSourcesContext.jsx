@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
+import { listPinterestBoards } from '@/lib/pinterest'
 
 const ConnectedSourcesContext = createContext(null)
 
@@ -12,6 +13,12 @@ export function ConnectedSourcesProvider({ children }) {
   const { subscription, isGuest, updateSubscription } = useAuth()
   const [connections, setConnections] = useState([])
   const [isLoading, setIsLoading] = useState(false)
+  // CB_09 policy: board names are never persisted, only ever fetched fresh
+  // and held in session state. { [connectionId]: { [boardId]: name } } — the
+  // one shared place other consumers (e.g. ForYouPage's filter drawer) can
+  // read a Pinterest connection's board names from, instead of each needing
+  // its own private fetch.
+  const [pinterestBoardNames, setPinterestBoardNames] = useState({})
 
   const activeSourceIds = subscription?.active_connected_source_ids ?? []
 
@@ -54,6 +61,35 @@ export function ConnectedSourcesProvider({ children }) {
     refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subscription?.id, isGuest])
+
+  const pinterestConnections = connections.filter(
+    (c) => c.source_type === 'pinterest' && c.status === 'connected'
+  )
+
+  // Fetches board names fresh for any connected Pinterest connection —
+  // never stored in Supabase, only held here for consumers like ForYouPage's
+  // filter drawer to read for display. Keyed on connection id (+ token, so a
+  // reconnect re-fetches) rather than the whole `connections` array, since
+  // that array gets a new reference on unrelated updates too.
+  useEffect(() => {
+    if (pinterestConnections.length === 0) return
+    let cancelled = false
+    Promise.all(
+      pinterestConnections.map(async (connection) => {
+        try {
+          const boards = await listPinterestBoards(connection.access_token)
+          return [connection.id, Object.fromEntries(boards.map((b) => [b.id, b.name]))]
+        } catch {
+          return [connection.id, {}]
+        }
+      })
+    ).then((entries) => {
+      if (cancelled) return
+      setPinterestBoardNames((prev) => ({ ...prev, ...Object.fromEntries(entries) }))
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(pinterestConnections.map((c) => [c.id, c.access_token]))])
 
   // Called once column mapping is confirmed (CB_12: "Column mapping must be
   // confirmed before the connection is saved" — nothing is persisted before
@@ -214,6 +250,7 @@ export function ConnectedSourcesProvider({ children }) {
         refresh,
         saveConnection,
         savePinterestConnection,
+        pinterestBoardNames,
         disconnectSource,
         updateConnectionTokens,
         markReconnectRequired,
