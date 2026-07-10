@@ -17,6 +17,29 @@ export function pinterestMealId(pinId) {
   return `pinterest:${pinId}`
 }
 
+// Pinterest appends tracking params to a pin's destination URL
+// (pins_campaign_id, pp, and sometimes utm_*/epik) that some recipe sites
+// fail to render correctly for — the same URL works when fetched without
+// them. Stripped here so only the clean URL ever reaches
+// basket_items.destination_url; api/fetch-recipe.js applies the same
+// stripping as a safety net for URLs already stored with them attached.
+const TRACKING_PARAM_PATTERNS = [/^pins_/i, /^utm_/i, /^pp$/i, /^epik$/i]
+
+function stripTrackingParams(url) {
+  if (!url) return url
+  try {
+    const parsed = new URL(url)
+    for (const key of [...parsed.searchParams.keys()]) {
+      if (TRACKING_PARAM_PATTERNS.some((pattern) => pattern.test(key))) {
+        parsed.searchParams.delete(key)
+      }
+    }
+    return parsed.toString()
+  } catch {
+    return url
+  }
+}
+
 // Pinterest's media.images response is keyed by size name, and which keys
 // show up depends on the app's approved access level — "original" is only
 // present for apps with elevated image-size approval, which this app's
@@ -47,7 +70,7 @@ export function pinterestPinToCard(pin, connection, boardName) {
     connection_id: connection.id,
     title: pin.title || pin.description || 'Untitled pin',
     image_url: pinterestPinImageUrl(pin),
-    destination_url: pin.link ?? null,
+    destination_url: stripTrackingParams(pin.link) ?? null,
     source_footer: boardName ? `Pinterest / ${boardName}` : 'Pinterest',
     featureFlags: getSourceFeatureFlags('pinterest'),
     metadataResolved: true,

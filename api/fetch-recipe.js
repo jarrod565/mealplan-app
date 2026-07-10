@@ -1,5 +1,22 @@
 import { URL } from 'node:url'
 
+// Pinterest appends tracking params to pin destination URLs (pins_campaign_id,
+// pp, and sometimes utm_*/epik) that some recipe sites fail to render
+// correctly for — the same URL works when fetched without them. Mirrors the
+// stripping src/lib/pinterestAdapter.js applies before a URL is ever
+// persisted; this is a safety net for URLs already stored with them
+// attached (or any other caller that didn't strip them).
+const TRACKING_PARAM_PATTERNS = [/^pins_/i, /^utm_/i, /^pp$/i, /^epik$/i]
+
+function stripTrackingParams(parsedUrl) {
+  for (const key of [...parsedUrl.searchParams.keys()]) {
+    if (TRACKING_PARAM_PATTERNS.some((pattern) => pattern.test(key))) {
+      parsedUrl.searchParams.delete(key)
+    }
+  }
+  return parsedUrl
+}
+
 function decodeHtmlEntities(value) {
   return value
     .replace(/&amp;/g, '&')
@@ -228,7 +245,7 @@ export default async function handler(request, response) {
   }
 
   try {
-    const normalizedUrl = new URL(url)
+    const normalizedUrl = stripTrackingParams(new URL(url))
 
     if (mode === 'ingredients') {
       const spoonacular = await extractIngredientsFromSpoonacular(normalizedUrl.toString())
