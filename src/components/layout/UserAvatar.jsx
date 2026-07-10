@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { ShoppingBasket } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useBasket } from '@/contexts/BasketContext'
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 
 function getInitials(email) {
   if (!email) return '?'
@@ -23,6 +24,7 @@ export default function UserAvatar() {
   const { user, isGuest } = useAuth()
   const { basketCount } = useBasket()
   const initials = isGuest ? 'G' : getInitials(user?.email)
+  const avatarUrl = user?.user_metadata?.avatar_url
 
   return (
     <div className="flex items-center gap-2.5">
@@ -41,9 +43,14 @@ export default function UserAvatar() {
       <Link
         to="/settings"
         aria-label="Account settings"
-        className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shrink-0 hover:opacity-90 active:scale-95 transition-all shadow-sm"
+        className="w-9 h-9 rounded-full shrink-0 hover:opacity-90 active:scale-95 transition-all shadow-sm"
       >
-        {initials}
+        <Avatar className="w-full h-full">
+          <AvatarImage src={avatarUrl} alt="" />
+          <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
       </Link>
     </div>
   )
