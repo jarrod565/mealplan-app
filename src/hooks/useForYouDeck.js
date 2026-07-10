@@ -16,8 +16,25 @@ import { pinterestPinToCard } from '@/lib/pinterestAdapter'
 // a depleted deck auto-reshuffles the No pile once before going empty.
 
 const PAGE_SIZE = 25
-const MAX_PAGES_PER_SOURCE = 3 // bounded — CB_12: "no pre-fetching or caching of the full base"
-const LOW_WATER_MARK = 8 // fetch the next page once the deck drops to this many cards
+// Neither Airtable's `offset` nor Pinterest's `bookmark` is a jump-to-index
+// param — each is an opaque cursor only obtainable from a prior response,
+// and neither API offers a random-sort option. To still land on a different
+// slice of the corpus each fetch, randomAirtableOffset/randomPinterestBookmark
+// below walk forward through 0-MAX_SKIP_PAGES throwaway pages (fetched at
+// this larger size to minimize round trips) purely to discover a cursor,
+// discarding the records — never cached, never rendered.
+const SKIP_PAGE_SIZE = 100
+const MAX_SKIP_PAGES = 5
+const LOW_WATER_MARK = 8 // fetch the next batch once the deck drops to this many cards
+// A single random slice can land entirely on already-swiped/basketed cards.
+// Retry with a fresh slice a few times before accepting "nothing new this
+// round" rather than surfacing a false empty state from one unlucky sample.
+const MAX_FETCH_ATTEMPTS = 4
+// Consecutive empty rounds (across loadMore calls) before background
+// top-ups stop retrying for the rest of this session — random sampling can
+// never be 100% sure the pool is exhausted, so this is a practical cutoff,
+// not a hard guarantee. Reset on every loadBatch (fresh session).
+const MAX_CONSECUTIVE_EMPTY = 3
 
 function shuffle(arr) {
   const a = [...arr]
@@ -26,6 +43,56 @@ function shuffle(arr) {
     ;[a[i], a[j]] = [a[j], a[i]]
   }
   return a
+}
+
+// Walks forward through 0-MAX_SKIP_PAGES throwaway pages (large page size,
+// records discarded) to land on a random Airtable offset. Wraps back to the
+// start (offset undefined) if the walk runs off the end of the table — e.g.
+// a base smaller than the randomly chosen skip depth — rather than stalling
+// with no usable cursor. Module-level (like shuffle) rather than defined
+// inside useForYouDeck: it calls Math.random(), and the React Compiler
+// flags impure calls in functions defined within a hook's render body.
+async function randomAirtableOffset(connection) {
+  const skipPages = Math.floor(Math.random() * (MAX_SKIP_PAGES + 1))
+  let offset
+  for (let i = 0; i < skipPages; i++) {
+    let result
+    try {
+      result = await listAirtableRecords(connection.access_token, connection.base_id, connection.table_id, {
+        pageSize: SKIP_PAGE_SIZE,
+        offset,
+      })
+    } catch {
+      break
+    }
+    if (!result.offset) {
+      offset = undefined
+      break
+    }
+    offset = result.offset
+  }
+  return offset
+}
+
+// Same throwaway-walk technique as randomAirtableOffset, but over
+// Pinterest's `bookmark` cursor for a single board.
+async function randomPinterestBookmark(connection, boardId) {
+  const skipPages = Math.floor(Math.random() * (MAX_SKIP_PAGES + 1))
+  let bookmark
+  for (let i = 0; i < skipPages; i++) {
+    let result
+    try {
+      result = await listPinterestBoardPins(connection.access_token, boardId, { pageSize: SKIP_PAGE_SIZE, bookmark })
+    } catch {
+      break
+    }
+    if (!result.bookmark) {
+      bookmark = undefined
+      break
+    }
+    bookmark = result.bookmark
+  }
+  return bookmark
 }
 
 // status:
@@ -47,21 +114,12 @@ export function useForYouDeck() {
 
   const noPileRef = useRef(new Set()) // session-only No-swiped meal_ids — never persisted
 
-  // Pagination cursors, keyed by connection.id, persisted across fetch calls
-  // for the life of the session (reset on loadBatch/Start Over). Shape
-  // differs by source since Airtable paginates the whole table with one
-  // offset while Pinterest paginates per board:
-  //   airtable:  { offset, exhausted }
-  //   pinterest: { [boardId]: { bookmark, exhausted } }
-  // Without this, offset/bookmark only ever lived in a local variable inside
-  // a single fetch call and was thrown away as soon as that call returned —
-  // the deck could never grow past its first page.
-  const cursorsRef = useRef({})
   // Pinterest board names are fetched fresh each session (never persisted —
-  // CB_09 policy) and cached here per connection so a background top-up
-  // doesn't re-list all boards just to re-derive names it already has.
+  // CB_09 policy) and cached here per connection so repeated fetches within
+  // the same session don't re-list boards just to re-derive names.
   const pinterestBoardNamesRef = useRef({})
   const isLoadingMoreRef = useRef(false) // guards overlapping background top-ups
+  const consecutiveEmptyRef = useRef(0)
 
   const activeConnections = connections.filter(
     (c) => activeSourceIds.includes(c.id) && c.status === 'connected'
@@ -90,51 +148,29 @@ export function useForYouDeck() {
     return usable
   }
 
-  // Pulls up to MAX_PAGES_PER_SOURCE pages per connection, stopping early once
-  // a page yields at least one not-yet-swiped, not-already-in-basket card —
-  // enough to keep the deck moving without pre-fetching a whole base at once.
-  // Basket membership (permanent exclusion, per CB_12) is checked live via
-  // isInBasket rather than a precomputed set, since it can change mid-session.
-  //
-  // Resumes from wherever this connection's cursor left off (cursorsRef) and
-  // writes the new cursor back before returning — this is what lets repeated
-  // calls (loadBatch, then loadMore as the deck runs low) walk forward
-  // through the table instead of each one restarting from the beginning.
+  // One random-slice attempt for this connection — a different slice every
+  // call, not a continuation of a previous one. Basket membership (permanent
+  // exclusion, per CB_12) is checked live via isInBasket rather than a
+  // precomputed set, since it can change mid-session.
   async function fetchAirtableCards(connection, noPile) {
-    const cursor = cursorsRef.current[connection.id] ?? { offset: undefined, exhausted: false }
-    if (cursor.exhausted) return []
-
-    const collected = []
-    let offset = cursor.offset
-    for (let page = 0; page < MAX_PAGES_PER_SOURCE; page++) {
-      let result
-      try {
-        result = await listAirtableRecords(connection.access_token, connection.base_id, connection.table_id, {
-          pageSize: PAGE_SIZE,
-          offset,
-        })
-      } catch {
-        break // this source failed this round — skip it, other sources still count
-      }
-      const cards = result.records
-        .map((record) => airtableRecordToCard(record, connection))
-        .filter((card) => !noPile.has(card.meal_id) && !isInBasket(card.meal_id))
-      collected.push(...cards)
-      offset = result.offset
-      if (!offset || cards.length > 0) break
+    const offset = await randomAirtableOffset(connection)
+    let result
+    try {
+      result = await listAirtableRecords(connection.access_token, connection.base_id, connection.table_id, {
+        pageSize: PAGE_SIZE,
+        offset,
+      })
+    } catch {
+      return [] // this source failed this round — skip it, other sources still count
     }
-    cursorsRef.current[connection.id] = { offset, exhausted: !offset }
-    return collected
+    return result.records
+      .map((record) => airtableRecordToCard(record, connection))
+      .filter((card) => !noPile.has(card.meal_id) && !isInBasket(card.meal_id))
   }
 
-  // Same bounded-pagination shape as fetchAirtableCards, but paginates each
-  // selected board via Pinterest's cursor-based `bookmark` param instead of
-  // Airtable's `offset`, and each board carries its own independent cursor
-  // (cursorsRef.current[connection.id][boardId]) since boards paginate
-  // separately. Board names are fetched fresh once per connection per
-  // session (never persisted — CB_09 policy) and cached in
-  // pinterestBoardNamesRef so a later top-up call doesn't re-list boards
-  // just to re-derive names it already has.
+  // One random-slice attempt across this connection's selected boards. Board
+  // *order* is reshuffled every call too, so repeated fetches don't always
+  // favor whichever board happens to be first in selected_board_ids.
   async function fetchPinterestCards(connection, noPile) {
     const boardIds = connection.config?.selected_board_ids ?? []
     if (boardIds.length === 0) return []
@@ -150,47 +186,21 @@ export function useForYouDeck() {
       }
     }
 
-    const boardCursors = cursorsRef.current[connection.id] ?? {}
-    cursorsRef.current[connection.id] = boardCursors
-
     const collected = []
-    for (const boardId of boardIds) {
-      const cursor = boardCursors[boardId] ?? { bookmark: undefined, exhausted: false }
-      if (cursor.exhausted) continue
-
-      let bookmark = cursor.bookmark
-      for (let page = 0; page < MAX_PAGES_PER_SOURCE; page++) {
-        let result
-        try {
-          result = await listPinterestBoardPins(connection.access_token, boardId, { pageSize: PAGE_SIZE, bookmark })
-        } catch {
-          break
-        }
-        const cards = result.pins
-          .map((pin) => pinterestPinToCard(pin, connection, boardNameById.get(pin.board_id ?? boardId)))
-          .filter((card) => !noPile.has(card.meal_id) && !isInBasket(card.meal_id))
-        collected.push(...cards)
-        bookmark = result.bookmark
-        if (!bookmark || cards.length > 0) break
+    for (const boardId of shuffle(boardIds)) {
+      const bookmark = await randomPinterestBookmark(connection, boardId)
+      let result
+      try {
+        result = await listPinterestBoardPins(connection.access_token, boardId, { pageSize: PAGE_SIZE, bookmark })
+      } catch {
+        continue
       }
-      boardCursors[boardId] = { bookmark, exhausted: !bookmark }
+      const cards = result.pins
+        .map((pin) => pinterestPinToCard(pin, connection, boardNameById.get(pin.board_id ?? boardId)))
+        .filter((card) => !noPile.has(card.meal_id) && !isInBasket(card.meal_id))
+      collected.push(...cards)
     }
     return collected
-  }
-
-  // Cheap short-circuit so the low-water-mark effect stops firing background
-  // fetches once every active source has genuinely run out of pages, instead
-  // of re-deriving "nothing left" on every render while the deck sits low.
-  function allSourcesExhausted(readyConnections) {
-    return readyConnections.every((connection) => {
-      const cursor = cursorsRef.current[connection.id]
-      if (!cursor) return false // never fetched yet — can't be exhausted
-      if (connection.source_type === 'pinterest') {
-        const boardIds = connection.config?.selected_board_ids ?? []
-        return boardIds.every((boardId) => cursor[boardId]?.exhausted)
-      }
-      return cursor.exhausted === true
-    })
   }
 
   async function fetchFreshCards(readyConnections, noPile) {
@@ -204,17 +214,31 @@ export function useForYouDeck() {
     return collected
   }
 
+  // Retries fresh random slices (each fetchFreshCards call is itself a new
+  // random sample, per source) until one yields a usable card or the
+  // attempt budget runs out. Dedupes within this call's own accumulated
+  // results — cross-attempt overlap is possible since each attempt samples
+  // independently rather than continuing from the last one.
+  async function collectRandomCards(readyConnections, noPile) {
+    const collected = []
+    const seen = new Set()
+    for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS && collected.length === 0; attempt++) {
+      const cards = await fetchFreshCards(readyConnections, noPile)
+      for (const card of cards) {
+        if (seen.has(card.meal_id)) continue
+        seen.add(card.meal_id)
+        collected.push(card)
+      }
+    }
+    return collected
+  }
+
   const loadBatch = useCallback(async () => {
     setStatus('init')
     setErrorMessage(null)
     noPileRef.current = new Set()
-    // Full reset — matches CB_12's "Start Over ... re-pulls fresh pages so
-    // newly-added rows become eligible." Without clearing these, a repeat
-    // loadBatch (Start Over, or a source becoming active again) would
-    // resume from wherever the previous session's cursors left off instead
-    // of walking the pool from the beginning.
-    cursorsRef.current = {}
     pinterestBoardNamesRef.current = {}
+    consecutiveEmptyRef.current = 0
 
     if (activeConnections.length === 0) {
       setDeck([])
@@ -230,7 +254,7 @@ export function useForYouDeck() {
         return
       }
 
-      const cards = await fetchFreshCards(ready, noPileRef.current)
+      const cards = await collectRandomCards(ready, noPileRef.current)
       setDeck(shuffle(cards))
       setStatus(cards.length === 0 ? 'empty' : 'idle')
     } catch (err) {
@@ -240,24 +264,28 @@ export function useForYouDeck() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(activeConnections.map((c) => c.id))])
 
-  // Background top-up — fetches the next page per source using each
-  // connection's persisted cursor and appends to the existing deck, without
-  // touching status/noPileRef the way loadBatch does. This is what lets
-  // pagination continue as the user swipes instead of capping at whatever
-  // loadBatch fetched once on load. Triggered by the low-water-mark effect
-  // below, not called directly from swipe handlers.
+  // Background top-up — fetches a fresh random slice per source and appends
+  // to the existing deck, without touching status/noPileRef the way
+  // loadBatch does. This is what lets pagination continue as the user swipes
+  // instead of capping at whatever loadBatch fetched once on load. Triggered
+  // by the low-water-mark effect below, not called directly from swipe
+  // handlers.
   async function loadMore() {
     if (isLoadingMoreRef.current) return
     if (activeConnections.length === 0) return
-    if (allSourcesExhausted(activeConnections)) return
+    if (consecutiveEmptyRef.current >= MAX_CONSECUTIVE_EMPTY) return
 
     isLoadingMoreRef.current = true
     try {
       const ready = await ensureFreshTokens(activeConnections)
       if (ready.length === 0) return
 
-      const cards = await fetchFreshCards(ready, noPileRef.current)
-      if (cards.length === 0) return
+      const cards = await collectRandomCards(ready, noPileRef.current)
+      if (cards.length === 0) {
+        consecutiveEmptyRef.current += 1
+        return
+      }
+      consecutiveEmptyRef.current = 0
 
       setDeck((prev) => {
         const existingIds = new Set(prev.map((c) => c.meal_id))
@@ -278,9 +306,9 @@ export function useForYouDeck() {
     }
   }
 
-  // CB_09/CB_12 note the deck should never go empty just because pagination
-  // wasn't fetched ahead of time — this fires loadMore() while cards still
-  // remain, well before the user actually runs out.
+  // CB_09/CB_12 note the deck should never go empty just because the next
+  // batch wasn't fetched ahead of time — this fires loadMore() while cards
+  // still remain, well before the user actually runs out.
   useEffect(() => {
     if (activeConnections.length === 0) return
     if (status === 'init' || status === 'error') return
