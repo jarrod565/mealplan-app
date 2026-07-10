@@ -125,20 +125,20 @@ export default function ForYouPage() {
           </div>
 
           <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
-            <SheetTitle className="text-base font-semibold">Filter sources</SheetTitle>
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center">
+              <SheetTitle className="text-base font-semibold">Filter sources</SheetTitle>
               <Link
                 to="/settings"
                 onClick={() => setFilterOpen(false)}
-                className="text-sm font-medium text-primary hover:underline px-1.5"
+                className="text-sm font-medium text-primary hover:underline ml-4"
               >
                 Manage
               </Link>
-              <SheetClose className="p-1.5 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors shrink-0">
-                <X className="w-4 h-4" />
-                <span className="sr-only">Close</span>
-              </SheetClose>
             </div>
+            <SheetClose className="p-1.5 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors shrink-0">
+              <X className="w-4 h-4" />
+              <span className="sr-only">Close</span>
+            </SheetClose>
           </div>
 
           <div className="px-5 py-2">
@@ -147,13 +147,13 @@ export default function ForYouPage() {
               if (c.source_type !== 'pinterest') {
                 return (
                   <label key={c.id} className="flex items-center gap-3 py-2.5 cursor-pointer">
-                    <span className="text-sm flex-1 min-w-0 truncate">
-                      {c.base_name} / {c.table_name}
-                    </span>
                     <Switch
                       checked={isSourceActive(c.id)}
                       onCheckedChange={() => toggleSourceActive(c.id)}
                     />
+                    <span className="text-sm flex-1 min-w-0 truncate">
+                      {c.base_name} / {c.table_name}
+                    </span>
                   </label>
                 )
               }
@@ -167,13 +167,13 @@ export default function ForYouPage() {
                 const boardName = pinterestBoardNames[c.id]?.[boardId]
                 return (
                   <label key={`${c.id}:${boardId}`} className="flex items-center gap-3 py-2.5 cursor-pointer">
-                    <span className="text-sm flex-1 min-w-0 truncate">
-                      Pinterest / {boardName ?? 'Loading…'}
-                    </span>
                     <Switch
                       checked={isBoardActive(boardId)}
                       onCheckedChange={() => toggleBoardActive(boardId)}
                     />
+                    <span className="text-sm flex-1 min-w-0 truncate">
+                      Pinterest / {boardName ?? 'Loading…'}
+                    </span>
                   </label>
                 )
               })

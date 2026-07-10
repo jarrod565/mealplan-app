@@ -42,6 +42,22 @@ export function ConnectedSourcesProvider({ children }) {
 
   async function setActivePinterestBoardIds(ids) {
     await updateSubscription({ active_pinterest_board_ids: ids })
+    // updateSubscription already applies its own response to local state,
+    // but explicitly re-read the column here too so a write that silently
+    // didn't persist (e.g. an RLS policy no-op, or a stale schema cache)
+    // surfaces as a thrown error instead of the toggle looking successful
+    // while the database disagrees.
+    const { data, error } = await supabase
+      .from('subscriptions')
+      .select('active_pinterest_board_ids')
+      .eq('id', subscription.id)
+      .single()
+    if (error) throw error
+    const persisted = data?.active_pinterest_board_ids ?? []
+    const persistedMatches = persisted.length === ids.length && ids.every((id) => persisted.includes(id))
+    if (!persistedMatches) {
+      throw new Error('Board selection did not save — please try again.')
+    }
   }
 
   async function toggleSourceActive(connectionId) {
