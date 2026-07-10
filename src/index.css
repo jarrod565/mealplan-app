@@ -32,77 +32,79 @@
 :root {
   --radius: 0.625rem;
 
-  /* Backgrounds — warm greige/linen */
-  --background: oklch(0.963 0.014 70);
-  --card: oklch(1 0 0);
-  --popover: oklch(1 0 0);
+  /* Backgrounds — cool, clean neutrals (no warm/orange bleed) */
+  --background: #f7f8fa;
+  --card: #ffffff;
+  --popover: #ffffff;
 
-  /* Text — near-black with warm undertone */
-  --foreground: oklch(0.145 0.015 30);
-  --card-foreground: oklch(0.145 0.015 30);
-  --popover-foreground: oklch(0.145 0.015 30);
+  /* Text — near-black, neutral (not warm-tinted) */
+  --foreground: #181c22;
+  --card-foreground: #181c22;
+  --popover-foreground: #181c22;
 
-  /* Primary — orange/amber */
-  --primary: oklch(0.655 0.185 50);
-  --primary-foreground: oklch(1 0 0);
+  /* Primary — brand green */
+  --primary: #24722d;
+  --primary-foreground: #ffffff;
 
-  /* Secondary — warm light gray */
-  --secondary: oklch(0.920 0.015 65);
-  --secondary-foreground: oklch(0.300 0.035 50);
+  /* Secondary — cool light gray */
+  --secondary: #eff1f4;
+  --secondary-foreground: #2a2f37;
 
-  /* Muted — warm gray */
-  --muted: oklch(0.920 0.015 65);
-  --muted-foreground: oklch(0.540 0.020 50);
+  /* Muted — cool gray */
+  --muted: #eff1f4;
+  --muted-foreground: #6c7280;
 
-  /* Accent — warm peach */
-  --accent: oklch(0.930 0.030 65);
-  --accent-foreground: oklch(0.280 0.050 45);
+  /* Accent — light green tint (hover surfaces), ties back to primary */
+  --accent: #e7f0e8;
+  --accent-foreground: #1e5226;
 
   /* Destructive */
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
 
   /* Borders */
-  --border: oklch(0.878 0.018 65);
-  --input: oklch(0.878 0.018 65);
-  --ring: oklch(0.600 0.160 50);
+  --border: #e2e5ea;
+  --input: #e2e5ea;
+  --ring: #24722d;
 }
 
 .dark {
-  /* Warm dark charcoal/brown — not near-black green */
-  --background: oklch(0.178 0.022 45);
-  --card: oklch(0.220 0.022 45);
-  --popover: oklch(0.178 0.022 45);
+  /* Deep navy surfaces — background darkest, card/popover one step lighter,
+     secondary/muted one step lighter still. Navy only — primary green never
+     tints these. */
+  --background: #0a0f1e;
+  --card: #111827;
+  --popover: #111827;
 
-  /* Warm off-white text */
-  --foreground: oklch(0.930 0.012 80);
-  --card-foreground: oklch(0.930 0.012 80);
-  --popover-foreground: oklch(0.930 0.012 80);
+  /* Cool blue-white text */
+  --foreground: #eef1f6;
+  --card-foreground: #eef1f6;
+  --popover-foreground: #eef1f6;
 
-  /* Primary — lighter orange/amber for dark backgrounds */
-  --primary: oklch(0.720 0.175 55);
-  --primary-foreground: oklch(0.145 0.015 30);
+  /* Primary — brightened green for legibility against navy */
+  --primary: #2a7e38;
+  --primary-foreground: #ffffff;
 
-  /* Secondary — dark warm brown */
-  --secondary: oklch(0.268 0.025 45);
-  --secondary-foreground: oklch(0.780 0.050 60);
+  /* Secondary — navy surface, one step lighter than card */
+  --secondary: #1a2235;
+  --secondary-foreground: #c4ccd8;
 
   /* Muted */
-  --muted: oklch(0.258 0.020 45);
-  --muted-foreground: oklch(0.600 0.028 55);
+  --muted: #1a2235;
+  --muted-foreground: #8896a8;
 
-  /* Accent */
-  --accent: oklch(0.298 0.030 45);
-  --accent-foreground: oklch(0.800 0.060 60);
+  /* Accent — navy hover surface, no green tint */
+  --accent: #212c43;
+  --accent-foreground: #eef1f6;
 
   /* Destructive */
   --destructive: oklch(0.50 0.22 25);
   --destructive-foreground: oklch(0.985 0 0);
 
   /* Borders */
-  --border: oklch(0.308 0.025 45);
-  --input: oklch(0.308 0.025 45);
-  --ring: oklch(0.660 0.155 50);
+  --border: #1e2d45;
+  --input: #1e2d45;
+  --ring: #2a7e38;
 }
 
 @layer base {

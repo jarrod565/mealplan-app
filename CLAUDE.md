@@ -117,8 +117,8 @@ Built as both a personal utility and a portfolio case study demonstrating end-to
 
 ## Design Direction
 
-- **Palette (light):** Warm greige/linen background, orange/amber primary accent, white cards with soft shadow
-- **Palette (dark):** Warm dark charcoal surfaces, orange/amber accent carries through
+- **Palette (light):** Cool white/light grey background, green (#24722D) primary accent, white cards with soft shadow
+- **Palette (dark):** Deep navy surfaces (background darkest, cards/panels one step lighter, secondary/muted lighter still), brightened green accent for legibility — navy only on surfaces, green reserved for interactive elements
 - **Typography:** Clean sans-serif, strong hierarchy, generous whitespace
 - **Vibe:** Fresh and natural — inspired by Zillow and Tonal simplicity
 - **Swipe card (Explore):** Full-bleed photo, difficulty + prep time badges overlaid top left, favorite heart top right, meal name + ingredients row below as card footer, action buttons overlaid on photo
