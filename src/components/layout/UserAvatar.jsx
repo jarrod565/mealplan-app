@@ -27,7 +27,7 @@ export default function UserAvatar() {
   const avatarUrl = user?.user_metadata?.avatar_url
 
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-center gap-4">
       <Link
         to="/basket"
         aria-label={`Basket${basketCount > 0 ? ` — ${basketCount} meal${basketCount !== 1 ? 's' : ''}` : ''}`}
@@ -35,7 +35,7 @@ export default function UserAvatar() {
       >
         <ShoppingBasket className="w-5 h-5" strokeWidth={1.75} />
         {basketCount > 0 && (
-          <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center px-1">
+          <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center px-1">
             {basketCount}
           </span>
         )}
