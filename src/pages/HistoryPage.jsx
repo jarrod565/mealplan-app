@@ -19,6 +19,23 @@ function formatDate(iso) {
   }).format(new Date(iso))
 }
 
+function groupRecordsByDate(items) {
+  const groups = []
+  const byDateKey = new Map()
+  for (const record of items) {
+    const dateKey = new Date(record.last_made_at).toDateString()
+    let group = byDateKey.get(dateKey)
+    if (!group) {
+      group = { dateKey, date: record.last_made_at, records: [] }
+      byDateKey.set(dateKey, group)
+      groups.push(group)
+    }
+    group.records.push(record)
+  }
+  groups.sort((a, b) => new Date(b.date) - new Date(a.date))
+  return groups
+}
+
 function generateUrlImportMealId() {
   return `url-import:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
@@ -120,6 +137,11 @@ export default function HistoryPage() {
     }
   })
 
+  // Grouped by calendar day (descending), derived at render time so a
+  // "Make This Again" re-add — which bumps last_made_at — automatically
+  // moves a record into today's group on the next render.
+  const dateGroups = groupRecordsByDate(displayRecords)
+
   useEffect(() => {
     if (!promptRecordId) return
     function dismiss() {
@@ -182,17 +204,26 @@ export default function HistoryPage() {
         </div>
       ) : (
         <div className="max-w-2xl mx-auto px-4 py-5">
-          <div className="space-y-3">
-            {displayRecords.map((record) => (
-              <HistoryRow
-                key={record.id}
-                record={record}
-                inBasket={recordInBasket(record)}
-                showFavoritePrompt={promptRecordId === record.id}
-                onMakeAgain={() => handleMakeAgain(record)}
-                onFavoriteYes={() => handleFavoriteYes(record)}
-                onFavoriteNo={() => setPromptRecordId(null)}
-              />
+          <div className="space-y-6">
+            {dateGroups.map((group) => (
+              <div key={group.dateKey}>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-1">
+                  {formatDate(group.date)}
+                </p>
+                <div className="space-y-3">
+                  {group.records.map((record) => (
+                    <HistoryRow
+                      key={record.id}
+                      record={record}
+                      inBasket={recordInBasket(record)}
+                      showFavoritePrompt={promptRecordId === record.id}
+                      onMakeAgain={() => handleMakeAgain(record)}
+                      onFavoriteYes={() => handleFavoriteYes(record)}
+                      onFavoriteNo={() => setPromptRecordId(null)}
+                    />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
 
@@ -232,9 +263,6 @@ function HistoryRow({ record, inBasket, showFavoritePrompt, onMakeAgain, onFavor
 
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-sm leading-snug line-clamp-2">{record.title}</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Made {formatDate(record.last_made_at)}
-          </p>
           {viewRecipeUrl && (
             <a
               href={viewRecipeUrl}
