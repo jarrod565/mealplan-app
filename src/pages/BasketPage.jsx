@@ -5,7 +5,7 @@ import { useConnectedSources } from '@/contexts/ConnectedSourcesContext'
 import { fetchMealDetails } from '@/lib/spoonacular'
 import { fetchRecipeMetadata, isPinterestUrl, isValidUrl, normalizeUrl } from '@/lib/urlImport'
 import { getPinterestPin } from '@/lib/pinterest'
-import { pinterestPinImageUrl } from '@/lib/pinterestAdapter'
+import { pinterestPinImageUrl, resolveViewRecipeUrl } from '@/lib/pinterestAdapter'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
@@ -26,7 +26,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import UserAvatar from '@/components/layout/UserAvatar'
-import { Clock, Loader2, ShoppingBasket, ChevronRight, Trash2, X, Link as LinkIcon } from 'lucide-react'
+import { Clock, Loader2, ShoppingBasket, ChevronRight, Trash2, X, Link as LinkIcon, ExternalLink } from 'lucide-react'
 import { cn, formatIngredientQty } from '@/lib/utils'
 
 export default function BasketPage() {
@@ -126,6 +126,7 @@ export default function BasketPage() {
   }, [openMealId, basketItems])
 
   const openMeal = displayItems.find((m) => m.meal_id === openMealId) ?? null
+  const viewRecipeUrl = resolveViewRecipeUrl(openMeal)
 
   function handleOpenMeal(mealId) {
     setOpenMealId(mealId)
@@ -389,6 +390,14 @@ export default function BasketPage() {
 
           {/* Ingredient list */}
           <div className="flex-1 overflow-y-auto px-5 py-5">
+            {viewRecipeUrl && (
+              <Button variant="outline" size="sm" asChild className="mb-4 gap-1.5">
+                <a href={viewRecipeUrl} target="_blank" rel="noreferrer">
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  View Recipe
+                </a>
+              </Button>
+            )}
             <p className="text-[11px] font-bold text-primary/70 uppercase tracking-widest mb-4">
               {drawerLoading
                 ? 'Loading ingredients…'

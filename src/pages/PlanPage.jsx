@@ -5,11 +5,12 @@ import { Sheet, SheetContent, SheetTitle, SheetClose } from '@/components/ui/she
 import { useMealDiscovery } from '@/hooks/useMealDiscovery'
 import { useFavorites } from '@/contexts/FavoritesContext'
 import { fetchMealDetails } from '@/lib/spoonacular'
+import { resolveViewRecipeUrl } from '@/lib/pinterestAdapter'
 import ActiveFilterIndicator from '@/components/plan/ActiveFilterIndicator'
 import SwipeCard from '@/components/plan/SwipeCard'
 import NeverConfirmDialog from '@/components/plan/NeverConfirmDialog'
 import UserAvatar from '@/components/layout/UserAvatar'
-import { RefreshCw, Loader2, X, SlidersHorizontal } from 'lucide-react'
+import { RefreshCw, Loader2, X, SlidersHorizontal, ExternalLink } from 'lucide-react'
 
 export default function PlanPage() {
   const { deck, status, errorMessage, swipeYes, swipeNo, swipeNever, reload } = useMealDiscovery()
@@ -23,6 +24,7 @@ export default function PlanPage() {
   const [sheetDetails, setSheetDetails] = useState(null)
   const [sheetLoading, setSheetLoading] = useState(false)
   const detailsCache = useRef({})
+  const viewRecipeUrl = resolveViewRecipeUrl(sheetMeal)
 
   async function handleIngredientsPress(meal) {
     setSheetMeal(meal)
@@ -187,6 +189,14 @@ export default function PlanPage() {
 
           {/* Ingredient list */}
           <div className="flex-1 overflow-y-auto px-5 py-4">
+            {viewRecipeUrl && (
+              <Button variant="outline" size="sm" asChild className="mb-4 gap-1.5">
+                <a href={viewRecipeUrl} target="_blank" rel="noreferrer">
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  View Recipe
+                </a>
+              </Button>
+            )}
             {sheetLoading ? (
               <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
                 <Loader2 className="w-4 h-4 animate-spin text-primary" />

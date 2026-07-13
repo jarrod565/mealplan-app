@@ -3,7 +3,8 @@ import { toast } from 'sonner'
 import { useFavorites } from '@/contexts/FavoritesContext'
 import { useBasket } from '@/contexts/BasketContext'
 import { fetchMealDetails } from '@/lib/spoonacular'
-import { Clock, Heart, ShoppingBasket, Check, Loader2, X } from 'lucide-react'
+import { resolveViewRecipeUrl } from '@/lib/pinterestAdapter'
+import { Clock, Heart, ShoppingBasket, Check, Loader2, X, ExternalLink } from 'lucide-react'
 import { formatIngredientQty } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -48,6 +49,7 @@ export default function FavoritesPage() {
   }, [openMealId])
 
   const openMeal = favorites.find((m) => m.meal_id === openMealId) ?? null
+  const viewRecipeUrl = resolveViewRecipeUrl(openMeal)
 
   return (
     <>
@@ -144,6 +146,14 @@ export default function FavoritesPage() {
           </div>
 
           <div className="flex-1 overflow-y-auto px-5 py-5">
+            {viewRecipeUrl && (
+              <Button variant="outline" size="sm" asChild className="mb-4 gap-1.5">
+                <a href={viewRecipeUrl} target="_blank" rel="noreferrer">
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  View Recipe
+                </a>
+              </Button>
+            )}
             <p className="text-[11px] font-bold text-primary/70 uppercase tracking-widest mb-4">
               {drawerLoading
                 ? 'Loading ingredients…'

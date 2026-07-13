@@ -57,6 +57,28 @@ export function pinterestPinImageUrl(pin) {
   return Object.values(images)[0]?.url ?? null
 }
 
+// Resolves the URL a "View Recipe" button should open for a meal: its own
+// destination_url when present, or — for Pinterest meals with no
+// destination_url (e.g. an image-only pin with no source link) — a link to
+// the pin itself on Pinterest, derived from the pin_id embedded in meal_id.
+// Shared across every meal detail drawer (Basket, Favorites, Explore) and
+// History's inline link so the fallback logic lives in one place.
+//
+// Detects Pinterest via the meal_id prefix rather than source_type: Favorites
+// records never store source_type at all (FavoritesContext only persists
+// meal_id/name/photo_url/prep_time), but meal_id still carries the
+// `pinterest:${pinId}` prefix set by pinterestMealId() regardless of which
+// screen the meal object came from, so this works there too without needing
+// to extend Favorites' storage.
+export function resolveViewRecipeUrl(meal) {
+  if (!meal) return null
+  if (meal.destination_url) return meal.destination_url
+  if (typeof meal.meal_id === 'string' && meal.meal_id.startsWith('pinterest:')) {
+    return `https://pinterest.com/pin/${meal.meal_id.slice('pinterest:'.length)}`
+  }
+  return null
+}
+
 // pin: raw Pinterest pin object ({ id, title, media, link, board_id })
 // connection: persisted connected_sources row
 // boardName: fetched fresh from the Pinterest API this session — held in
