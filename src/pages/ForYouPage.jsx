@@ -5,9 +5,9 @@ import { useForYouDeck } from '@/hooks/useForYouDeck'
 import ConnectedSourceCard from '@/components/foryou/ConnectedSourceCard'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { Sheet, SheetContent, SheetTitle, SheetClose } from '@/components/ui/sheet'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import {
-  Sparkles, Plug, Loader2, SlidersHorizontal, X, RotateCcw,
+  Sparkles, Plug, Loader2, SlidersHorizontal, RotateCcw,
 } from 'lucide-react'
 import UserAvatar from '@/components/layout/UserAvatar'
 
@@ -45,13 +45,67 @@ export default function ForYouPage() {
         <h1 className="text-xl font-bold tracking-tight">For You</h1>
         <div className="flex items-center gap-2.5">
           {hasConnections && (
-            <button
-              onClick={() => setFilterOpen(true)}
-              className="p-2 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-              aria-label="Filter sources"
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-            </button>
+            <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  className="p-2 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Filter sources"
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="center" className="w-80 p-0">
+                <div className="flex items-center px-4 py-3 border-b">
+                  <p className="text-base font-semibold">Filter sources</p>
+                  <Link
+                    to="/settings"
+                    onClick={() => setFilterOpen(false)}
+                    className="text-sm font-medium text-primary hover:underline ml-4"
+                  >
+                    Manage
+                  </Link>
+                </div>
+
+                <div className="px-4 py-2">
+                  {connections.flatMap((c) => {
+                    // Airtable: one toggle row per connection, unchanged.
+                    if (c.source_type !== 'pinterest') {
+                      return (
+                        <label key={c.id} className="flex items-center gap-3 py-2.5 cursor-pointer">
+                          <Switch
+                            checked={isSourceActive(c.id)}
+                            onCheckedChange={() => toggleSourceActive(c.id)}
+                          />
+                          <span className="text-sm flex-1 min-w-0 truncate">
+                            {c.base_name} / {c.table_name}
+                          </span>
+                        </label>
+                      )
+                    }
+
+                    // Pinterest: one toggle row per selected board rather than one
+                    // for the whole connection — board names are session-only
+                    // (CB_09 policy), read from ConnectedSourcesContext's
+                    // pinterestBoardNames rather than persisted anywhere.
+                    const boardIds = c.config?.selected_board_ids ?? []
+                    return boardIds.map((boardId) => {
+                      const boardName = pinterestBoardNames[c.id]?.[boardId]
+                      return (
+                        <label key={`${c.id}:${boardId}`} className="flex items-center gap-3 py-2.5 cursor-pointer">
+                          <Switch
+                            checked={isBoardActive(boardId)}
+                            onCheckedChange={() => toggleBoardActive(boardId)}
+                          />
+                          <span className="text-sm flex-1 min-w-0 truncate">
+                            Pinterest / {boardName ?? 'Loading…'}
+                          </span>
+                        </label>
+                      )
+                    })
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
           )}
           <UserAvatar />
         </div>
@@ -112,75 +166,6 @@ export default function ForYouPage() {
           </div>
         )}
       </main>
-
-      <Sheet open={filterOpen} onOpenChange={setFilterOpen}>
-        <SheetContent
-          side="bottom"
-          showCloseButton={false}
-          className="z-[60] flex flex-col gap-0 px-0 pt-0"
-          overlayClassName="z-[60]"
-        >
-          <div className="flex justify-center pt-3 pb-1 shrink-0" aria-hidden="true">
-            <div className="w-12 h-1.5 rounded-full bg-border" />
-          </div>
-
-          <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
-            <div className="flex items-center">
-              <SheetTitle className="text-base font-semibold">Filter sources</SheetTitle>
-              <Link
-                to="/settings"
-                onClick={() => setFilterOpen(false)}
-                className="text-sm font-medium text-primary hover:underline ml-4"
-              >
-                Manage
-              </Link>
-            </div>
-            <SheetClose className="p-1.5 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors shrink-0">
-              <X className="w-4 h-4" />
-              <span className="sr-only">Close</span>
-            </SheetClose>
-          </div>
-
-          <div className="px-5 py-2">
-            {connections.flatMap((c) => {
-              // Airtable: one toggle row per connection, unchanged.
-              if (c.source_type !== 'pinterest') {
-                return (
-                  <label key={c.id} className="flex items-center gap-3 py-2.5 cursor-pointer">
-                    <Switch
-                      checked={isSourceActive(c.id)}
-                      onCheckedChange={() => toggleSourceActive(c.id)}
-                    />
-                    <span className="text-sm flex-1 min-w-0 truncate">
-                      {c.base_name} / {c.table_name}
-                    </span>
-                  </label>
-                )
-              }
-
-              // Pinterest: one toggle row per selected board rather than one
-              // for the whole connection — board names are session-only
-              // (CB_09 policy), read from ConnectedSourcesContext's
-              // pinterestBoardNames rather than persisted anywhere.
-              const boardIds = c.config?.selected_board_ids ?? []
-              return boardIds.map((boardId) => {
-                const boardName = pinterestBoardNames[c.id]?.[boardId]
-                return (
-                  <label key={`${c.id}:${boardId}`} className="flex items-center gap-3 py-2.5 cursor-pointer">
-                    <Switch
-                      checked={isBoardActive(boardId)}
-                      onCheckedChange={() => toggleBoardActive(boardId)}
-                    />
-                    <span className="text-sm flex-1 min-w-0 truncate">
-                      Pinterest / {boardName ?? 'Loading…'}
-                    </span>
-                  </label>
-                )
-              })
-            })}
-          </div>
-        </SheetContent>
-      </Sheet>
     </div>
   )
 }
