@@ -254,7 +254,7 @@ export default function AccountSettingsPage() {
             <div>
               <CardTitle className="text-base">Dietary Preferences</CardTitle>
               <CardDescription className="mt-1">
-                Filter the meal discovery experience by dietary restrictions.
+                These preferences filter meals in the Explore section only. Recipes from connected sources like Pinterest and Airtable are not filtered.
               </CardDescription>
             </div>
             {(subscription?.dietary_restrictions?.length ?? 0) > 0 && (
