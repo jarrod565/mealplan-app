@@ -31,7 +31,20 @@ import { cn, formatIngredientQty } from '@/lib/utils'
 
 export default function BasketPage() {
   const { basketItems, basketCount, removeFromBasket, addToBasket } = useBasket()
-  const { connections } = useConnectedSources()
+  const { connections, activeSourceIds, activePinterestBoardIds } = useConnectedSources()
+
+  // Same "active connected source" definition useForYouDeck uses to decide
+  // whether the For You deck has anything to show: Airtable is active at the
+  // connection level, Pinterest is active only if at least one of its
+  // selected boards is toggled on.
+  const hasActiveConnection = connections.some((c) => {
+    if (c.status !== 'connected') return false
+    if (c.source_type === 'pinterest') {
+      const boardIds = c.config?.selected_board_ids ?? []
+      return boardIds.some((id) => activePinterestBoardIds.includes(id))
+    }
+    return activeSourceIds.includes(c.id)
+  })
 
   const [openMealId, setOpenMealId] = useState(null)
   const [drawerDetails, setDrawerDetails] = useState(null)
@@ -238,9 +251,20 @@ export default function BasketPage() {
                 Swipe right on meals you'd like to cook this week.
               </p>
             </div>
-            <Button asChild>
-              <Link to="/plan">Start swiping</Link>
-            </Button>
+            {hasActiveConnection ? (
+              <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
+                <Button asChild className="flex-1">
+                  <Link to="/for-you">Start Swiping</Link>
+                </Button>
+                <Button asChild variant="outline" className="flex-1">
+                  <Link to="/plan">Explore Meals</Link>
+                </Button>
+              </div>
+            ) : (
+              <Button asChild>
+                <Link to="/plan">Start swiping</Link>
+              </Button>
+            )}
           </div>
 
           <div className="mt-6 rounded-2xl border bg-card p-4 shadow-sm space-y-3">
