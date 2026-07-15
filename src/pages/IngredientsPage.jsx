@@ -331,7 +331,7 @@ export default function IngredientsPage() {
                 if (!items?.length) return null
                 return (
                   <div key={cat} className="mb-2">
-                    <p className="text-[11px] font-bold text-primary/60 uppercase tracking-widest mb-1 mt-4 first:mt-0 px-1">
+                    <p className="text-[11px] font-bold text-primary/60 uppercase tracking-widest mb-1 mt-8 first:mt-0 px-1">
                       {cat}
                     </p>
                     {items.map(item => (
@@ -569,6 +569,18 @@ function IngredientRow({ item, isEditing, editValue, onEditStart, onEditChange, 
     }
   }
 
+  // Desktop-only click path to the same revealed state a short swipe produces.
+  // Closing via a second chevron click is already handled above — any click on
+  // the row while revealed closes it, capture-phase, before this ever runs.
+  // On touch devices the chevron stays decorative; swipe does everything there.
+  function handleChevronClick(e) {
+    e.stopPropagation()
+    const isFinePointer = window.matchMedia?.('(hover: hover) and (pointer: fine)').matches
+    if (!isFinePointer || revealed) return
+    setRevealed(true)
+    api.start({ x: -REVEAL_WIDTH })
+  }
+
   // Red fill that ramps in once the swipe passes the button-reveal point,
   // reaching full opacity right at the full-swipe delete threshold — visual
   // confirmation that continuing the swipe will commit to deleting.
@@ -594,7 +606,7 @@ function IngredientRow({ item, isEditing, editValue, onEditStart, onEditChange, 
         {...bind()}
         onClickCapture={handleRowClickCapture}
         style={{ x, touchAction: 'pan-y' }}
-        className="relative flex items-center gap-2 px-2 py-1.5 rounded-md bg-card border border-border/50"
+        className="relative flex items-center gap-2 px-2 py-3 rounded-md bg-card border border-border/50"
       >
         <span className="flex-1 text-sm">{item.name}</span>
         {isEditing && canEdit ? (
@@ -619,8 +631,16 @@ function IngredientRow({ item, isEditing, editValue, onEditStart, onEditChange, 
             {displayQty}
           </button>
         )}
-        {/* Swipe affordance — signals the row slides without needing instructions */}
-        <ChevronLeft className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" aria-hidden="true" />
+        {/* Swipe affordance — signals the row slides without needing instructions.
+            Also a click target on desktop: opens the same state a short swipe would. */}
+        <button
+          type="button"
+          onClick={handleChevronClick}
+          aria-label={revealed ? 'Hide remove button' : 'Show remove button'}
+          className="shrink-0 p-1 -m-1 rounded text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+        >
+          <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
+        </button>
       </animated.div>
       <animated.div
         style={{ opacity: flashOpacity }}
