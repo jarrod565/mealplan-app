@@ -25,7 +25,7 @@ import {
 import { cn, formatIngredientQty } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
-  Loader2, Minus, Plus, ChevronRight,
+  Loader2, Minus, Plus, ChevronRight, ChevronLeft,
   List, LayoutGrid, AlertTriangle, PlusCircle,
 } from 'lucide-react'
 import UserAvatar from '@/components/layout/UserAvatar'
@@ -483,8 +483,12 @@ function MealServingRow({ meal, status, adjusted, onAdjust, onDismiss }) {
   )
 }
 
-// Width (px) of the "Remove" button revealed by a left swipe
+// Width (px) of the "Remove" button revealed by a short left swipe
 const REVEAL_WIDTH = 88
+// A swipe past this fraction of the row's own width auto-deletes, no tap needed
+const FULL_SWIPE_RATIO = 0.75
+// Fallback row width used only until the row's real width is measured
+const DEFAULT_ROW_WIDTH = 320
 
 function IngredientRow({ item, isEditing, editValue, onEditStart, onEditChange, onEditSave, onRemove }) {
   const isToTaste = item.unit?.toLowerCase() === 'servings'
@@ -494,40 +498,89 @@ function IngredientRow({ item, isEditing, editValue, onEditStart, onEditChange, 
     ? 'to taste'
     : formatIngredientQty(item.quantity, item.unit, item.extras)
 
+  const rowRef = useRef(null)
+  const [revealed, setRevealed] = useState(false)
+  const [rowWidth, setRowWidth] = useState(DEFAULT_ROW_WIDTH)
   const [{ x }, api] = useSpring(() => ({ x: 0 }))
-  const revealedRef = useRef(false)
+
+  // Measured once on mount so the 75%-of-row-width full-swipe threshold
+  // reflects this row's actual rendered size rather than a guessed constant.
+  useEffect(() => {
+    if (rowRef.current) setRowWidth(rowRef.current.offsetWidth || DEFAULT_ROW_WIDTH)
+  }, [])
+
+  // Desktop dismiss: closing the revealed row is driven only by an explicit
+  // swipe-back or a click that lands outside this row+button — never by
+  // pointer/mouse *leave*, which fires on ordinary cursor movement toward the
+  // Remove button itself and would close it before the click can land.
+  useEffect(() => {
+    if (!revealed) return
+    function handleOutsidePointerDown(e) {
+      if (rowRef.current && !rowRef.current.contains(e.target)) {
+        setRevealed(false)
+        api.start({ x: 0 })
+      }
+    }
+    document.addEventListener('pointerdown', handleOutsidePointerDown, true)
+    return () => document.removeEventListener('pointerdown', handleOutsidePointerDown, true)
+  }, [revealed, api])
 
   const bind = useDrag(
     ({ down, movement: [mx], last, tap }) => {
       if (tap) return
-      const base = revealedRef.current ? -REVEAL_WIDTH : 0
-      const next = Math.min(0, Math.max(-REVEAL_WIDTH, base + mx))
+      const base = revealed ? -REVEAL_WIDTH : 0
+      const next = Math.max(-rowWidth, Math.min(0, base + mx))
       if (down) {
         api.start({ x: next, immediate: true })
         return
       }
       if (!last) return
+
+      // Full swipe (iOS Messages pattern): past ~75% of the row's width, the
+      // row finishes sliding off-screen on its own and the item is removed —
+      // no tap on Remove required. Short swipe just reveals the button.
+      const fullSwipeX = -rowWidth * FULL_SWIPE_RATIO
+      if (next <= fullSwipeX) {
+        setRevealed(false)
+        api.start({
+          x: -rowWidth - 40,
+          config: { duration: 200 },
+          onRest: onRemove,
+        })
+        return
+      }
+
       const shouldOpen = next < -REVEAL_WIDTH / 2
-      revealedRef.current = shouldOpen
+      setRevealed(shouldOpen)
       api.start({ x: shouldOpen ? -REVEAL_WIDTH : 0 })
     },
     // No pointer: { touch } restriction — mouse drag works on desktop too
     { axis: 'x', filterTaps: true }
   )
 
-  // A tap anywhere on the row while it's revealed just closes it, matching
+  // A tap on the row itself while it's revealed just closes it, matching
   // the iOS swipe-to-delete convention — it never triggers edit/etc underneath.
   function handleRowClickCapture(e) {
-    if (revealedRef.current) {
+    if (revealed) {
       e.preventDefault()
       e.stopPropagation()
-      revealedRef.current = false
+      setRevealed(false)
       api.start({ x: 0 })
     }
   }
 
+  // Red fill that ramps in once the swipe passes the button-reveal point,
+  // reaching full opacity right at the full-swipe delete threshold — visual
+  // confirmation that continuing the swipe will commit to deleting.
+  const flashOpacity = x.to((v) => {
+    const revealPoint = -REVEAL_WIDTH
+    if (v >= revealPoint) return 0
+    const fullPoint = -rowWidth * FULL_SWIPE_RATIO
+    return Math.min(1, (revealPoint - v) / (revealPoint - fullPoint))
+  })
+
   return (
-    <div className="relative overflow-hidden rounded-md">
+    <div ref={rowRef} className="relative overflow-hidden rounded-md mb-1">
       <div className="absolute inset-y-0 right-0 flex" style={{ width: REVEAL_WIDTH }}>
         <button
           onClick={onRemove}
@@ -541,7 +594,7 @@ function IngredientRow({ item, isEditing, editValue, onEditStart, onEditChange, 
         {...bind()}
         onClickCapture={handleRowClickCapture}
         style={{ x, touchAction: 'pan-y' }}
-        className="relative flex items-center gap-2 px-1 py-1.5 bg-background"
+        className="relative flex items-center gap-2 px-2 py-1.5 rounded-md bg-card border border-border/50"
       >
         <span className="flex-1 text-sm">{item.name}</span>
         {isEditing && canEdit ? (
@@ -566,7 +619,13 @@ function IngredientRow({ item, isEditing, editValue, onEditStart, onEditChange, 
             {displayQty}
           </button>
         )}
+        {/* Swipe affordance — signals the row slides without needing instructions */}
+        <ChevronLeft className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" aria-hidden="true" />
       </animated.div>
+      <animated.div
+        style={{ opacity: flashOpacity }}
+        className="absolute inset-0 rounded-md bg-destructive pointer-events-none"
+      />
     </div>
   )
 }
