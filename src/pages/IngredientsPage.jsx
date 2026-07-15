@@ -1,10 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
+import { animated, useSpring } from '@react-spring/web'
+import { useDrag } from '@use-gesture/react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useBasket } from '@/contexts/BasketContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { useShoppingList } from '@/contexts/ShoppingListContext'
 import { useHistory } from '@/contexts/HistoryContext'
+import { useConnectedSources } from '@/contexts/ConnectedSourcesContext'
 import { fetchMealDetails } from '@/lib/spoonacular'
+import { getPinterestPin } from '@/lib/pinterest'
+import { pinterestPinImageUrl } from '@/lib/pinterestAdapter'
 import { aggregateIngredients, aisleToCategory, CATEGORIES } from '@/lib/units'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,7 +25,7 @@ import {
 import { cn, formatIngredientQty } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
-  Loader2, Minus, Plus, X, ChevronRight,
+  Loader2, Minus, Plus, ChevronRight,
   List, LayoutGrid, AlertTriangle, PlusCircle,
 } from 'lucide-react'
 import UserAvatar from '@/components/layout/UserAvatar'
@@ -44,11 +49,14 @@ export default function IngredientsPage() {
   const { subscription } = useAuth()
   const { items: existingItems, generateShoppingList } = useShoppingList()
   const { writeHistory } = useHistory()
+  const { connections } = useConnectedSources()
   const navigate = useNavigate()
 
   const householdServings = subscription?.default_serving_size ?? 2
+  const pinterestConnection = connections.find((c) => c.source_type === 'pinterest' && c.status === 'connected')
 
   const [detailsMap, setDetailsMap] = useState({})
+  const [pinterestPinData, setPinterestPinData] = useState({})
   const [servingOverrides, setServingOverrides] = useState({})
   const [listItems, setListItems] = useState(null)
   const [viewMode, setViewMode] = useState('grouped')
@@ -81,6 +89,38 @@ export default function IngredientsPage() {
       }
     })
   }, [basketItems]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // CB_09: re-fetch pin title/image from Pinterest API using stored pin_id,
+  // same pattern as BasketPage.jsx/HistoryPage.jsx — only pin_id is persisted
+  // for Pinterest basket entries, title/image live only in local state.
+  useEffect(() => {
+    if (!pinterestConnection) return
+    const unresolved = basketItems.filter(
+      (m) => m.source_type === 'pinterest' && !pinterestPinData[m.meal_id]
+    )
+    if (unresolved.length === 0) return
+
+    let cancelled = false
+    Promise.all(
+      unresolved.map(async (item) => {
+        const pinId = item.meal_id.slice('pinterest:'.length)
+        try {
+          const pin = await getPinterestPin(pinterestConnection.access_token, pinId)
+          return [item.meal_id, {
+            title: pin.title || pin.description || null,
+            image_url: pinterestPinImageUrl(pin),
+          }]
+        } catch {
+          return [item.meal_id, { title: null, image_url: null }]
+        }
+      })
+    ).then((entries) => {
+      if (cancelled) return
+      setPinterestPinData((prev) => ({ ...prev, ...Object.fromEntries(entries) }))
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [basketItems, pinterestConnection])
 
   // Initialize list once all fetches complete
   useEffect(() => {
@@ -181,7 +221,18 @@ export default function IngredientsPage() {
   }
 
   const isLoading = listItems === null
-  const visibleMeals = basketItems.filter(m => detailsMap[m.meal_id]?.status !== 'dismissed')
+  const visibleMeals = basketItems
+    .filter(m => detailsMap[m.meal_id]?.status !== 'dismissed')
+    .map(m => {
+      if (m.source_type !== 'pinterest') return m
+      const pinData = pinterestPinData[m.meal_id]
+      if (!pinData) return m
+      return {
+        ...m,
+        name: pinData.title || m.name,
+        photo_url: pinData.image_url || m.photo_url,
+      }
+    })
   const errorMeals = visibleMeals.filter(m => detailsMap[m.meal_id]?.status === 'error')
   const allFailed = !isLoading && visibleMeals.length > 0 && errorMeals.length === visibleMeals.length
   const activeItems = listItems ?? []
@@ -432,6 +483,9 @@ function MealServingRow({ meal, status, adjusted, onAdjust, onDismiss }) {
   )
 }
 
+// Width (px) of the "Remove" button revealed by a left swipe
+const REVEAL_WIDTH = 88
+
 function IngredientRow({ item, isEditing, editValue, onEditStart, onEditChange, onEditSave, onRemove }) {
   const isToTaste = item.unit?.toLowerCase() === 'servings'
   const isCombined = (item.extras?.length ?? 0) > 0
@@ -440,38 +494,79 @@ function IngredientRow({ item, isEditing, editValue, onEditStart, onEditChange, 
     ? 'to taste'
     : formatIngredientQty(item.quantity, item.unit, item.extras)
 
+  const [{ x }, api] = useSpring(() => ({ x: 0 }))
+  const revealedRef = useRef(false)
+
+  const bind = useDrag(
+    ({ down, movement: [mx], last, tap }) => {
+      if (tap) return
+      const base = revealedRef.current ? -REVEAL_WIDTH : 0
+      const next = Math.min(0, Math.max(-REVEAL_WIDTH, base + mx))
+      if (down) {
+        api.start({ x: next, immediate: true })
+        return
+      }
+      if (!last) return
+      const shouldOpen = next < -REVEAL_WIDTH / 2
+      revealedRef.current = shouldOpen
+      api.start({ x: shouldOpen ? -REVEAL_WIDTH : 0 })
+    },
+    // No pointer: { touch } restriction — mouse drag works on desktop too
+    { axis: 'x', filterTaps: true }
+  )
+
+  // A tap anywhere on the row while it's revealed just closes it, matching
+  // the iOS swipe-to-delete convention — it never triggers edit/etc underneath.
+  function handleRowClickCapture(e) {
+    if (revealedRef.current) {
+      e.preventDefault()
+      e.stopPropagation()
+      revealedRef.current = false
+      api.start({ x: 0 })
+    }
+  }
+
   return (
-    <div className="flex items-center gap-2 px-1 py-1.5 rounded-md hover:bg-secondary/40 group">
-      <span className="flex-1 text-sm">{item.name}</span>
-      {isEditing && canEdit ? (
-        <input
-          type="number"
-          min="0"
-          step="0.25"
-          value={editValue}
-          onChange={e => onEditChange(e.target.value)}
-          onBlur={onEditSave}
-          onKeyDown={e => e.key === 'Enter' && onEditSave()}
-          autoFocus
-          className="w-16 text-right text-sm border rounded px-1.5 py-0.5 bg-background"
-        />
-      ) : (
+    <div className="relative overflow-hidden rounded-md">
+      <div className="absolute inset-y-0 right-0 flex" style={{ width: REVEAL_WIDTH }}>
         <button
-          onClick={canEdit ? onEditStart : undefined}
-          disabled={!canEdit}
-          className="text-sm text-right text-muted-foreground hover:text-foreground transition-colors rounded px-1 shrink-0 disabled:pointer-events-none"
-          title={canEdit ? 'Tap to edit quantity' : undefined}
+          onClick={onRemove}
+          className="flex-1 flex items-center justify-center bg-destructive text-destructive-foreground text-xs font-semibold"
+          aria-label={`Remove ${item.name}`}
         >
-          {displayQty}
+          Remove
         </button>
-      )}
-      <button
-        onClick={onRemove}
-        className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all shrink-0"
-        aria-label={`Remove ${item.name}`}
+      </div>
+      <animated.div
+        {...bind()}
+        onClickCapture={handleRowClickCapture}
+        style={{ x, touchAction: 'pan-y' }}
+        className="relative flex items-center gap-2 px-1 py-1.5 bg-background"
       >
-        <X className="w-3.5 h-3.5" />
-      </button>
+        <span className="flex-1 text-sm">{item.name}</span>
+        {isEditing && canEdit ? (
+          <input
+            type="number"
+            min="0"
+            step="0.25"
+            value={editValue}
+            onChange={e => onEditChange(e.target.value)}
+            onBlur={onEditSave}
+            onKeyDown={e => e.key === 'Enter' && onEditSave()}
+            autoFocus
+            className="w-16 text-right text-sm border rounded px-1.5 py-0.5 bg-background"
+          />
+        ) : (
+          <button
+            onClick={canEdit ? onEditStart : undefined}
+            disabled={!canEdit}
+            className="text-sm text-right text-muted-foreground hover:text-foreground transition-colors rounded px-1 shrink-0 disabled:pointer-events-none"
+            title={canEdit ? 'Tap to edit quantity' : undefined}
+          >
+            {displayQty}
+          </button>
+        )}
+      </animated.div>
     </div>
   )
 }

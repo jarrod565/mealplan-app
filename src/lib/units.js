@@ -98,8 +98,11 @@ export function aisleToCategory(aisle) {
   if (a.includes('bakery') || a.includes('bread')) return 'Bakery'
   if (a.includes('beverage') || a.includes('drink') || a.includes('juice') ||
       a.includes('coffee') || a.includes('tea') || a.includes('alcohol')) return 'Beverages'
-  // Pantry: spices, condiments, oils, pasta, canned, baking, dry goods, grains
-  if (a.includes('spice') || a.includes('seasoning') || a.includes('condiment') ||
+  // Spices & Seasonings: split out of Pantry so these skippable items can be
+  // visually grouped and bulk-skipped/removed at the bottom of the list
+  if (a.includes('spice') || a.includes('seasoning')) return 'Spices & Seasonings'
+  // Pantry: condiments, oils, pasta, canned, baking, dry goods, grains
+  if (a.includes('condiment') ||
       a.includes('oil') || a.includes('vinegar') || a.includes('pasta') ||
       a.includes('rice') || a.includes('grain') || a.includes('canned') ||
       a.includes('baking') || a.includes('dry') || a.includes('sauce') ||
@@ -113,6 +116,7 @@ export const CATEGORIES = [
   'Meat & Seafood',
   'Dairy & Eggs',
   'Pantry & Dry Goods',
+  'Spices & Seasonings',
   'Bakery',
   'Frozen',
   'Beverages',
