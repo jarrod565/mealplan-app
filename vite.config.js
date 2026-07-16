@@ -12,8 +12,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'MealPlan',
-        short_name: 'MealPlan',
+        name: 'Dinder',
+        short_name: 'Dinder',
         description: 'Weekly meal planning for households',
         theme_color: '#24722D',
         background_color: '#f7f8fa',
