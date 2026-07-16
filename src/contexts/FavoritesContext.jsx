@@ -67,7 +67,7 @@ export function FavoritesProvider({ children }) {
       const item = {
         subscription_id: subscription.id,
         meal_id: meal.meal_id,
-        name: meal.name,
+        name: meal.source_type === 'pinterest' ? 'Pinterest recipe' : meal.name,
         photo_url: meal.photo_url ?? null,
         prep_time: meal.prep_time ?? null,
       }
