@@ -18,10 +18,14 @@ import {
 } from '@/components/ui/alert-dialog'
 import ManageGroceryListsSheet from '@/components/shopping-list/ManageGroceryListsSheet'
 import AddFromSavedListSheet from '@/components/shopping-list/AddFromSavedListSheet'
+import AldiAgentInstructionsSheet from '@/components/shopping-list/AldiAgentInstructionsSheet'
+import AgentReviewSheet from '@/components/shopping-list/AgentReviewSheet'
+import { useAgentReviewItems } from '@/hooks/useAgentReviewItems'
+import { buildAldiAgentPrompt } from '@/lib/aldiAgent'
 import { CATEGORIES } from '@/lib/units'
 import { cn, formatIngredientQty } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Loader2, ShoppingCart, Trash2, Clipboard, Share2, ListPlus, Settings2 } from 'lucide-react'
+import { Loader2, ShoppingCart, Trash2, Clipboard, Share2, ListPlus, Settings2, Send, ClipboardList } from 'lucide-react'
 import UserAvatar from '@/components/layout/UserAvatar'
 
 const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
@@ -30,9 +34,12 @@ export default function ShoppingListPage() {
   const { items, isLoading, toggleItem, clearList, addItemsFromSavedList } = useShoppingList()
   const { isGuest } = useAuth()
   const groceryLists = useGroceryLists()
+  const agentReview = useAgentReviewItems()
   const [clearDialogOpen, setClearDialogOpen] = useState(false)
   const [manageListsOpen, setManageListsOpen] = useState(false)
   const [pullListOpen, setPullListOpen] = useState(false)
+  const [aldiInstructionsOpen, setAldiInstructionsOpen] = useState(false)
+  const [reviewSheetOpen, setReviewSheetOpen] = useState(false)
 
   const allChecked = items.length > 0 && items.every(i => i.checked)
   const unchecked = items.filter(i => !i.checked).length
@@ -75,6 +82,18 @@ export default function ShoppingListPage() {
   async function handleClear() {
     await clearList()
     setClearDialogOpen(false)
+  }
+
+  async function handleSendToAldi() {
+    const prompt = buildAldiAgentPrompt(items)
+    if (!prompt) return
+    try {
+      await navigator.clipboard.writeText(prompt)
+      toast.success('Prompt copied — paste into Claude in Chrome')
+      setAldiInstructionsOpen(true)
+    } catch {
+      toast.error('Could not copy to clipboard — please try again.')
+    }
   }
 
   const listHeader = (
@@ -129,6 +148,19 @@ export default function ShoppingListPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* CB_17: Needs Review entry point — only surfaces when there's something pending */}
+          {!isGuest && agentReview.pendingCount > 0 && (
+            <button
+              onClick={() => setReviewSheetOpen(true)}
+              className="relative p-2 -mr-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              aria-label={`Needs Review — ${agentReview.pendingCount} item${agentReview.pendingCount !== 1 ? 's' : ''} pending`}
+            >
+              <ClipboardList className="w-4 h-4" />
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-semibold flex items-center justify-center">
+                {agentReview.pendingCount}
+              </span>
+            </button>
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -156,6 +188,14 @@ export default function ShoppingListPage() {
             </Button>
           )}
         </div>
+
+        {/* CB_17: Aldi Cart Agent — subscription-only, hidden for guests */}
+        {!isGuest && (
+          <Button onClick={handleSendToAldi} className="w-full gap-2 mb-5">
+            <Send className="w-4 h-4" />
+            Send to Aldi Cart
+          </Button>
+        )}
 
         {/* CB_13: Grocery Lists — subscription-only, hidden for guests */}
         {!isGuest && (
@@ -238,6 +278,15 @@ export default function ShoppingListPage() {
             onOpenChange={setPullListOpen}
             groceryLists={groceryLists}
             onAddItems={addItemsFromSavedList}
+          />
+          <AldiAgentInstructionsSheet
+            open={aldiInstructionsOpen}
+            onOpenChange={setAldiInstructionsOpen}
+          />
+          <AgentReviewSheet
+            open={reviewSheetOpen}
+            onOpenChange={setReviewSheetOpen}
+            agentReview={agentReview}
           />
         </>
       )}
