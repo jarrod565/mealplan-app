@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useShoppingList } from '@/contexts/ShoppingListContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { useGroceryLists } from '@/hooks/useGroceryLists'
 import { formatListAsText } from '@/lib/exportList'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,17 +16,23 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import ManageGroceryListsSheet from '@/components/shopping-list/ManageGroceryListsSheet'
+import AddFromSavedListSheet from '@/components/shopping-list/AddFromSavedListSheet'
 import { CATEGORIES } from '@/lib/units'
 import { cn, formatIngredientQty } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Loader2, ShoppingCart, Trash2, Clipboard, Share2 } from 'lucide-react'
+import { Loader2, ShoppingCart, Trash2, Clipboard, Share2, ListPlus, Settings2 } from 'lucide-react'
 import UserAvatar from '@/components/layout/UserAvatar'
 
 const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
 
 export default function ShoppingListPage() {
-  const { items, isLoading, toggleItem, clearList } = useShoppingList()
+  const { items, isLoading, toggleItem, clearList, addItemsFromSavedList } = useShoppingList()
+  const { isGuest } = useAuth()
+  const groceryLists = useGroceryLists()
   const [clearDialogOpen, setClearDialogOpen] = useState(false)
+  const [manageListsOpen, setManageListsOpen] = useState(false)
+  const [pullListOpen, setPullListOpen] = useState(false)
 
   const allChecked = items.length > 0 && items.every(i => i.checked)
   const unchecked = items.filter(i => !i.checked).length
@@ -148,6 +157,22 @@ export default function ShoppingListPage() {
           )}
         </div>
 
+        {/* CB_13: Grocery Lists — subscription-only, hidden for guests */}
+        {!isGuest && (
+          <div className="flex gap-2 mb-5">
+            {groceryLists.lists.length > 0 && (
+              <Button variant="outline" size="sm" onClick={() => setPullListOpen(true)} className="gap-1.5">
+                <ListPlus className="w-3.5 h-3.5" />
+                Add from saved list
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={() => setManageListsOpen(true)} className="gap-1.5 text-muted-foreground">
+              <Settings2 className="w-3.5 h-3.5" />
+              Manage Grocery Lists
+            </Button>
+          </div>
+        )}
+
         {/* "That's everything!" banner */}
         {allChecked && (
           <div className="rounded-2xl bg-primary text-primary-foreground px-4 py-3.5 mb-5 flex items-center justify-between gap-3">
@@ -200,6 +225,22 @@ export default function ShoppingListPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {!isGuest && (
+        <>
+          <ManageGroceryListsSheet
+            open={manageListsOpen}
+            onOpenChange={setManageListsOpen}
+            groceryLists={groceryLists}
+          />
+          <AddFromSavedListSheet
+            open={pullListOpen}
+            onOpenChange={setPullListOpen}
+            groceryLists={groceryLists}
+            onAddItems={addItemsFromSavedList}
+          />
+        </>
+      )}
     </>
   )
 }
@@ -234,8 +275,13 @@ function CheckItem({ item, onToggle }) {
         )}
       </span>
 
-      <span className={cn('flex-1 text-sm', item.checked && 'line-through')}>
-        {item.name}
+      <span className={cn('flex-1 text-sm flex items-center gap-1.5 min-w-0', item.checked && 'line-through')}>
+        <span className="truncate">{item.name}</span>
+        {item.sourceListName && (
+          <Badge variant="secondary" className="shrink-0 font-normal">
+            {item.sourceListName}
+          </Badge>
+        )}
       </span>
 
       {displayQty && (

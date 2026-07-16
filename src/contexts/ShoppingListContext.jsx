@@ -15,6 +15,7 @@ function toItems(rows) {
     category: r.category,
     isCustom: r.is_custom,
     checked: r.is_checked,
+    sourceListName: r.source_list_name ?? null,
   }))
 }
 
@@ -161,6 +162,43 @@ export function ShoppingListProvider({ children }) {
     }
   }
 
+  // CB_13: merge items pulled from a saved grocery list into the current
+  // (already-generated) list. Guest mode and "no list generated yet" are
+  // both no-ops — the pull UI only renders once a list exists. Saved-list
+  // items have a freeform quantity string (e.g. "1 gallon") rather than the
+  // numeric quantity + unit shape recipe ingredients use, so it's stored in
+  // the `unit` column with quantity left null — formatIngredientQty already
+  // renders that correctly with no special-casing.
+  async function addItemsFromSavedList(pulledItems, listName) {
+    if (isGuest || !subscriptionId || !listId) return { added: 0 }
+
+    const existingNames = new Set(items.map(i => i.name.trim().toLowerCase()))
+    const toAdd = pulledItems.filter(i => !existingNames.has(i.name.trim().toLowerCase()))
+    if (toAdd.length === 0) return { added: 0 }
+
+    const startOrder = items.length
+    const toInsert = toAdd.map((item, idx) => ({
+      shopping_list_id: listId,
+      name: item.name,
+      quantity: null,
+      unit: item.quantity ?? '',
+      category: 'Other',
+      is_custom: false,
+      is_checked: false,
+      sort_order: startOrder + idx,
+      source_list_name: listName,
+    }))
+
+    const { data: inserted, error } = await supabase
+      .from('shopping_list_items')
+      .insert(toInsert)
+      .select()
+    if (error) throw error
+
+    setItems(prev => [...prev, ...toItems(inserted ?? [])])
+    return { added: inserted?.length ?? 0 }
+  }
+
   async function clearList() {
     if (isGuest) {
       setListId(null)
@@ -178,7 +216,9 @@ export function ShoppingListProvider({ children }) {
   }
 
   return (
-    <ShoppingListContext.Provider value={{ items, isLoading, generateShoppingList, toggleItem, clearList }}>
+    <ShoppingListContext.Provider
+      value={{ items, isLoading, generateShoppingList, toggleItem, clearList, addItemsFromSavedList }}
+    >
       {children}
     </ShoppingListContext.Provider>
   )
