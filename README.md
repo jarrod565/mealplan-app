@@ -109,3 +109,4 @@ CB_09 introduces a reusable Connected Sources pattern. Each Connected Source is 
 - **Connected Source** — an external platform integrated via the CB_09 framework that supplies cards to the For You deck
 - **Explore** — the Spoonacular-powered swipe deck (formerly Plan)
 - **For You** — the Connected Sources swipe deck (Pinterest pins from selected boards)
+
