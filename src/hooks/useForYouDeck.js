@@ -118,6 +118,11 @@ export function useForYouDeck() {
   // CB_09 policy) and cached here per connection so repeated fetches within
   // the same session don't re-list boards just to re-derive names.
   const pinterestBoardNamesRef = useRef({})
+  // Real Pinterest pagination cursors, keyed by boardId. Missing key = never
+  // fetched this session (fall back to randomPinterestBookmark's random-slice
+  // walk). null = the board's last real fetch came back with no bookmark —
+  // exhausted, skip it. A string = the real cursor to resume from next time.
+  const pinterestBookmarksRef = useRef({})
   const isLoadingMoreRef = useRef(false) // guards overlapping background top-ups
   const consecutiveEmptyRef = useRef(0)
 
@@ -201,13 +206,24 @@ export function useForYouDeck() {
 
     const collected = []
     for (const boardId of shuffle(boardIds)) {
-      const bookmark = await randomPinterestBookmark(connection, boardId)
+      const storedBookmark = pinterestBookmarksRef.current[boardId]
+      if (storedBookmark === null) continue // exhausted this session — no more pins
+
+      // Only the first fetch for a board this session uses the random-slice
+      // walk to pick a starting point. Every fetch after that resumes from
+      // the real cursor the previous fetch actually returned.
+      const bookmark = storedBookmark === undefined
+        ? await randomPinterestBookmark(connection, boardId)
+        : storedBookmark
+
       let result
       try {
         result = await listPinterestBoardPins(connection.access_token, boardId, { pageSize: PAGE_SIZE, bookmark })
       } catch {
         continue
       }
+      pinterestBookmarksRef.current[boardId] = result.bookmark
+
       const cards = result.pins
         .map((pin) => pinterestPinToCard(pin, connection, boardNameById.get(pin.board_id ?? boardId)))
         .filter((card) => !noPile.has(card.meal_id) && !isInBasket(card.meal_id))
@@ -251,6 +267,7 @@ export function useForYouDeck() {
     setErrorMessage(null)
     noPileRef.current = new Set()
     pinterestBoardNamesRef.current = {}
+    pinterestBookmarksRef.current = {}
     consecutiveEmptyRef.current = 0
 
     if (activeConnections.length === 0) {
