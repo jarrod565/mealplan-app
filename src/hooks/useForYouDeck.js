@@ -207,8 +207,6 @@ export function useForYouDeck() {
     const collected = []
     for (const boardId of shuffle(boardIds)) {
       const storedBookmark = pinterestBookmarksRef.current[boardId]
-      // TEMP DEBUG — remove after diagnosis
-      console.log('[ForYou debug] fetchPinterestCards: board', boardId, 'storedBookmark =', storedBookmark)
       if (storedBookmark === null) continue // exhausted this session — no more pins
 
       // Only the first fetch for a board this session uses the random-slice
@@ -221,13 +219,9 @@ export function useForYouDeck() {
       let result
       try {
         result = await listPinterestBoardPins(connection.access_token, boardId, { pageSize: PAGE_SIZE, bookmark })
-      } catch (err) {
-        // TEMP DEBUG — remove after diagnosis
-        console.log('[ForYou debug] fetchPinterestCards: board', boardId, 'fetch threw', err)
+      } catch {
         continue
       }
-      // TEMP DEBUG — remove after diagnosis
-      console.log('[ForYou debug] fetchPinterestCards: board', boardId, 'got', result.pins.length, 'pins, new bookmark =', result.bookmark)
       pinterestBookmarksRef.current[boardId] = result.bookmark
 
       const cards = result.pins
@@ -273,8 +267,6 @@ export function useForYouDeck() {
     setErrorMessage(null)
     noPileRef.current = new Set()
     pinterestBoardNamesRef.current = {}
-    // TEMP DEBUG — remove after diagnosis
-    console.log('[ForYou debug] loadBatch: resetting pinterestBookmarksRef, previous =', pinterestBookmarksRef.current)
     pinterestBookmarksRef.current = {}
     consecutiveEmptyRef.current = 0
 
@@ -314,32 +306,18 @@ export function useForYouDeck() {
   // by the low-water-mark effect below, not called directly from swipe
   // handlers.
   async function loadMore() {
-    if (isLoadingMoreRef.current) {
-      // TEMP DEBUG — remove after diagnosis
-      console.log('[ForYou debug] loadMore: blocked, isLoadingMoreRef already true')
-      return
-    }
+    if (isLoadingMoreRef.current) return
     if (activeConnections.length === 0) return
-    if (consecutiveEmptyRef.current >= MAX_CONSECUTIVE_EMPTY) {
-      // TEMP DEBUG — remove after diagnosis
-      console.log('[ForYou debug] loadMore: blocked, consecutiveEmptyRef =', consecutiveEmptyRef.current)
-      return
-    }
+    if (consecutiveEmptyRef.current >= MAX_CONSECUTIVE_EMPTY) return
 
     isLoadingMoreRef.current = true
-    // TEMP DEBUG — remove after diagnosis
-    console.log('[ForYou debug] loadMore: starting fetch')
     try {
       const ready = await ensureFreshTokens(activeConnections)
       if (ready.length === 0) return
 
       const cards = await collectRandomCards(ready, noPileRef.current)
-      // TEMP DEBUG — remove after diagnosis
-      console.log('[ForYou debug] loadMore: collectRandomCards returned', cards.length, 'cards')
       if (cards.length === 0) {
         consecutiveEmptyRef.current += 1
-        // TEMP DEBUG — remove after diagnosis
-        console.log('[ForYou debug] loadMore: consecutiveEmptyRef incremented to', consecutiveEmptyRef.current)
         return
       }
       consecutiveEmptyRef.current = 0
@@ -370,8 +348,6 @@ export function useForYouDeck() {
     if (activeConnections.length === 0) return
     if (status === 'init' || status === 'error') return
     if (deck.length > LOW_WATER_MARK) return
-    // TEMP DEBUG — remove after diagnosis
-    console.log('[ForYou debug] low-water mark fired: deck.length =', deck.length, 'status =', status)
     loadMore()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deck.length, status])
