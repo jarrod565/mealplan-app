@@ -9,7 +9,7 @@
 | **Status** | Draft |
 | **Owner** | @Jarrod Murray |
 | **Depends On** | CB_13 (Grocery Lists), CB_06 (Ingredient Aggregation) |
-| **Required By** | None |
+| **Required By** | jarrod future state |
 
 ---
 
